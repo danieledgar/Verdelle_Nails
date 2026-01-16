@@ -1,0 +1,1 @@
+"""Verdelle Nails Django Project"""
