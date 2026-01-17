@@ -24,5 +24,8 @@ RUN cd backend && python3 manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-# Start the application (Railway provides $PORT)
-CMD ["bash", "-lc", "cd backend && python3 manage.py migrate && python3 populate_services.py && gunicorn verdelle_nails.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
+# Ensure the container runs commands via a shell (for 'cd' and chaining)
+ENTRYPOINT ["bash", "-lc"]
+
+# Start the application (Railway provides $PORT). CMD becomes the shell script argument.
+CMD ["cd backend && python3 manage.py migrate && python3 populate_services.py && gunicorn verdelle_nails.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
