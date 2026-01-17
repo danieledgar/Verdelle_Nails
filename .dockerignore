@@ -12,6 +12,9 @@ node_modules/
 
 # Local env and caches
 .env
+.env*
+backend/.env
+backend/.env*
 .venv
 
 # Local DBs and media (mounted externally in production)
