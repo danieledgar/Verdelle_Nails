@@ -1,0 +1,27 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node modules
+admin/node_modules/
+frontend/node_modules/
+node_modules/
+
+# Local env and caches
+.env
+.venv
+
+# Local DBs and media (mounted externally in production)
+*.sqlite3
+media/
+
+# Prebuilt static files in repo (collect at build)
+staticfiles/
+
+# VS Code and editor junk
+.vscode/
+*.swp
+*.swo
