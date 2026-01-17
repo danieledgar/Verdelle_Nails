@@ -6,6 +6,7 @@ from pathlib import Path
 from decouple import config
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,6 +25,16 @@ if config('RAILWAY_ENVIRONMENT', default=None):
 ALLOWED_HOSTS.extend([
     '*',  # For Railway deployment - will be restricted by CSRF settings
 ])
+
+# Helper to normalize origins to include scheme as required by Django>=4
+def normalize_origin(value):
+    if not value:
+        return []
+    value = value.strip()
+    if value.startswith('http://') or value.startswith('https://'):
+        return [value]
+    # If no scheme provided, allow both https and http forms
+    return [f'https://{value}', f'http://{value}']
 
 # Application definition
 INSTALLED_APPS = [
@@ -75,6 +86,13 @@ WSGI_APPLICATION = 'verdelle_nails.wsgi.application'
 # Database
 # Prefer DATABASE_URL if provided (common on Railway), else use individual env vars
 DATABASE_URL = config('DATABASE_URL', default=None)
+# On Railway (or when forced), require DATABASE_URL and do not fall back.
+RAILWAY_ENV = config('RAILWAY_ENVIRONMENT', default=None)
+FORCE_DATABASE_URL_ONLY = config('FORCE_DATABASE_URL_ONLY', default=False, cast=bool)
+
+if not DATABASE_URL and (RAILWAY_ENV or FORCE_DATABASE_URL_ONLY):
+    raise ImproperlyConfigured('DATABASE_URL must be set in this environment.')
+
 if DATABASE_URL:
     DB_SSL_REQUIRE = config('DB_SSL_REQUIRE', default=False, cast=bool)
     DATABASES = {
@@ -85,6 +103,7 @@ if DATABASE_URL:
         )
     }
 else:
+    # Local development fallback (when not on Railway and not forced)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -129,9 +148,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3001",
 ]
 
-# Add production frontend URL
-if config('FRONTEND_URL', default=None):
-    CORS_ALLOWED_ORIGINS.append(config('FRONTEND_URL'))
+# Add production frontend URL(s), ensuring scheme(s) are present
+FRONTEND_URL = config('FRONTEND_URL', default=None)
+CORS_ALLOWED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -143,11 +162,10 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3001",
 ]
 
-# Add production URLs for CSRF
-if config('RAILWAY_STATIC_URL', default=None):
-    CSRF_TRUSTED_ORIGINS.append(config('RAILWAY_STATIC_URL'))
-if config('FRONTEND_URL', default=None):
-    CSRF_TRUSTED_ORIGINS.append(config('FRONTEND_URL'))
+# Add production URLs for CSRF (normalized with scheme)
+RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default=None)
+CSRF_TRUSTED_ORIGINS.extend(normalize_origin(RAILWAY_STATIC_URL))
+CSRF_TRUSTED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
 
 # REST Framework Settings
 REST_FRAMEWORK = {
