@@ -4,6 +4,8 @@ Django settings for Verdelle Nails project.
 
 from pathlib import Path
 from decouple import config
+import os
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -71,16 +73,29 @@ TEMPLATES = [
 WSGI_APPLICATION = 'verdelle_nails.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='verdelle_nails'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='postgres'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+# Prefer DATABASE_URL if provided (common on Railway), else use individual env vars
+DATABASE_URL = config('DATABASE_URL', default=None)
+if DATABASE_URL:
+    DB_SSL_REQUIRE = config('DB_SSL_REQUIRE', default=False, cast=bool)
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=DB_SSL_REQUIRE
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='verdelle_nails'),
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default='postgres'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+            'CONN_MAX_AGE': 600,
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
