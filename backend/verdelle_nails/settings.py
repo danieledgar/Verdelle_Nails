@@ -152,6 +152,11 @@ CORS_ALLOWED_ORIGINS = [
 FRONTEND_URL = config('FRONTEND_URL', default=None)
 CORS_ALLOWED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
 
+# Optional: support multiple comma-separated frontend URLs via FRONTEND_URLS
+FRONTEND_URLS = [u.strip() for u in config('FRONTEND_URLS', default='').split(',') if u.strip()]
+for u in FRONTEND_URLS:
+    CORS_ALLOWED_ORIGINS.extend(normalize_origin(u))
+
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF Settings
@@ -166,6 +171,8 @@ CSRF_TRUSTED_ORIGINS = [
 RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default=None)
 CSRF_TRUSTED_ORIGINS.extend(normalize_origin(RAILWAY_STATIC_URL))
 CSRF_TRUSTED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
+for u in FRONTEND_URLS:
+    CSRF_TRUSTED_ORIGINS.extend(normalize_origin(u))
 
 # REST Framework Settings
 REST_FRAMEWORK = {
