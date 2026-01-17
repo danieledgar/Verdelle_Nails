@@ -28,5 +28,5 @@ EXPOSE 8000
 ENTRYPOINT ["bash", "-lc"]
 
 # Start the application (Railway provides $PORT). CMD becomes the shell script argument.
-# Run migrations and start Gunicorn with sensible defaults.
-CMD ["cd backend && python3 manage.py migrate && gunicorn verdelle_nails.wsgi:application --workers ${GUNICORN_WORKERS:-3} --threads ${GUNICORN_THREADS:-2} --timeout ${GUNICORN_TIMEOUT:-120} --bind 0.0.0.0:${PORT:-8000}"]
+# Wait for DB, run migrations, and start Gunicorn with sensible defaults.
+CMD ["python3 backend/wait_for_db.py && cd backend && python3 manage.py migrate && gunicorn verdelle_nails.wsgi:application --workers ${GUNICORN_WORKERS:-3} --threads ${GUNICORN_THREADS:-2} --timeout ${GUNICORN_TIMEOUT:-120} --bind 0.0.0.0:${PORT:-8000}"]
