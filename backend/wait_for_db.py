@@ -7,6 +7,9 @@ import psycopg2
 
 def build_dsn():
     database_url = os.environ.get("DATABASE_URL")
+    railway_env = os.environ.get("RAILWAY_ENVIRONMENT")
+    force_url_only = os.environ.get("FORCE_DATABASE_URL_ONLY", "False").lower() in {"1", "true", "yes"}
+
     if database_url:
         # Allow enforcing SSL via env
         if os.environ.get("DB_SSL_REQUIRE", "False").lower() in {"1", "true", "yes"} and "sslmode" not in database_url:
@@ -15,7 +18,11 @@ def build_dsn():
             database_url = f"{database_url}{sep}sslmode=require"
         return database_url
 
-    # Fall back to individual variables
+    # If in Railway or forced to URL-only, require DATABASE_URL
+    if railway_env or force_url_only:
+        raise RuntimeError("DATABASE_URL must be set in this environment.")
+
+    # Local development fallback
     name = os.environ.get("DB_NAME", "verdelle_nails")
     user = os.environ.get("DB_USER", "postgres")
     password = os.environ.get("DB_PASSWORD", "postgres")
@@ -51,5 +58,9 @@ def wait_for_db(timeout_seconds: int = 120, interval_seconds: float = 2.0):
 
 
 if __name__ == "__main__":
-    ok = wait_for_db()
+    try:
+        ok = wait_for_db()
+    except Exception as e:
+        print(f"Database configuration error: {e}")
+        ok = False
     sys.exit(0 if ok else 1)

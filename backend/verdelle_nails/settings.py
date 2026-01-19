@@ -14,17 +14,25 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-verdelle-nails-change
 
 DEBUG = config('DEBUG', default=True, cast=bool)
 
+# --- HOSTS SETTINGS ---
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+
+# Explicitly add your railway domain to be safe
+ALLOWED_HOSTS.append('verdellenails.up.railway.app')
+
 if config('RAILWAY_ENVIRONMENT', default=None):
     RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default=None)
     if RAILWAY_STATIC_URL:
-        ALLOWED_HOSTS.append(RAILWAY_STATIC_URL.replace('https://', '').replace('http://', ''))
+        # Clean up the URL to just the domain for ALLOWED_HOSTS
+        host = RAILWAY_STATIC_URL.replace('https://', '').replace('http://', '')
+        ALLOWED_HOSTS.append(host)
     ALLOWED_HOSTS.append('.railway.app')
 
 # Additional allowed hosts
 ALLOWED_HOSTS.extend([
-    '*',  # For Railway deployment - will be restricted by CSRF settings
+    '*',  # Note: usage of '*' is generally safe here if controlled by upstream proxy/firewall
 ])
+
 
 # Helper to normalize origins to include scheme as required by Django>=4
 def normalize_origin(value):
@@ -35,6 +43,7 @@ def normalize_origin(value):
         return [value]
     # If no scheme provided, allow both https and http forms
     return [f'https://{value}', f'http://{value}']
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -140,7 +149,19 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS Settings
+# --- CORS & CSRF SETTINGS ---
+
+# 1. Trusted Origins for CSRF (Fixing the 403 Error)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    # FIX: Explicitly add the Railway URL with https scheme
+    "https://verdellenails.up.railway.app",
+]
+
+# 2. Allowed Origins for CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -151,28 +172,20 @@ CORS_ALLOWED_ORIGINS = [
 # Add production frontend URL(s), ensuring scheme(s) are present
 FRONTEND_URL = config('FRONTEND_URL', default=None)
 CORS_ALLOWED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
+CSRF_TRUSTED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
 
 # Optional: support multiple comma-separated frontend URLs via FRONTEND_URLS
 FRONTEND_URLS = [u.strip() for u in config('FRONTEND_URLS', default='').split(',') if u.strip()]
 for u in FRONTEND_URLS:
     CORS_ALLOWED_ORIGINS.extend(normalize_origin(u))
+    CSRF_TRUSTED_ORIGINS.extend(normalize_origin(u))
+
+# Add Railway Dynamic URL (if available) to CSRF
+RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default=None)
+CSRF_TRUSTED_ORIGINS.extend(normalize_origin(RAILWAY_STATIC_URL))
 
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF Settings
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-]
-
-# Add production URLs for CSRF (normalized with scheme)
-RAILWAY_STATIC_URL = config('RAILWAY_STATIC_URL', default=None)
-CSRF_TRUSTED_ORIGINS.extend(normalize_origin(RAILWAY_STATIC_URL))
-CSRF_TRUSTED_ORIGINS.extend(normalize_origin(FRONTEND_URL))
-for u in FRONTEND_URLS:
-    CSRF_TRUSTED_ORIGINS.extend(normalize_origin(u))
 
 # REST Framework Settings
 REST_FRAMEWORK = {
