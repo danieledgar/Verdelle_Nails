@@ -1,1 +1,1 @@
-web: cd backend && python3 manage.py migrate && python3 populate_services.py && gunicorn verdelle_nails.wsgi:application --bind 0.0.0.0:$PORT
+web: cd backend && python3 manage.py migrate && python3 manage.py createsuperuser --noinput || true && python3 populate_services.py && gunicorn verdelle_nails.wsgi:application --bind 0.0.0.0:$PORT
