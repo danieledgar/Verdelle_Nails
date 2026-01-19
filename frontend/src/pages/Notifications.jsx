@@ -16,7 +16,7 @@ const Notifications = () => {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/notifications/', {
+      const response = await fetch(`${API_BASE}/api/notifications/', {
         headers: {
           'Authorization': `Token ${token}`,
         },
