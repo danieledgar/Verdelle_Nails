@@ -1,11 +1,9 @@
-
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import Service, ServiceCategory, GalleryImage, Appointment, Review, ContactMessage, User, Transaction, Notification
 
-
+# --- USER SERIALIZERS ---
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer for user profile"""
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 
@@ -13,9 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'is_active', 'is_staff', 'is_superuser', 'date_joined', 'created_at']
         read_only_fields = ['id', 'loyalty_points', 'created_at', 'date_joined']
 
-
 class RegisterSerializer(serializers.ModelSerializer):
-    """Serializer for user registration"""
     password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
     password_confirm = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
 
@@ -34,9 +30,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
-
 class LoginSerializer(serializers.Serializer):
-    """Serializer for user login"""
     username = serializers.CharField()
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
 
@@ -53,12 +47,19 @@ class LoginSerializer(serializers.Serializer):
             data['user'] = user
         else:
             raise serializers.ValidationError("Must include username and password.")
-        
         return data
 
+# --- SERVICE SERIALIZERS (Crucial for your page!) ---
+class ServiceSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = Service
+        # Note: 'duration' is included here!
+        fields = ['id', 'category', 'category_name', 'name', 'description', 'duration', 
+                  'price', 'image', 'is_featured', 'is_active', 'created_at']
 
 class ServiceCategorySerializer(serializers.ModelSerializer):
-    """Serializer for service categories"""
     services = serializers.SerializerMethodField()
     
     class Meta:
@@ -69,23 +70,12 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
         services = obj.services.filter(is_active=True)
         return ServiceSerializer(services, many=True).data
 
-
-class ServiceSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    
-    class Meta:
-        model = Service
-        fields = ['id', 'category', 'category_name', 'name', 'description', 'duration', 
-                  'price', 'image', 'is_featured', 'is_active', 'created_at']
-
-
+# --- OTHER SERIALIZERS ---
 class GalleryImageSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source='service.name', read_only=True)
-
     class Meta:
         model = GalleryImage
         fields = ['id', 'title', 'description', 'image', 'service', 'service_name', 'is_featured', 'created_at']
-
 
 class AppointmentSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source='service.name', read_only=True)
@@ -101,33 +91,25 @@ class AppointmentSerializer(serializers.ModelSerializer):
                            'payment_date', 'created_at']
 
     def validate(self, data):
-        # Check if appointment time slot is available
         appointment_date = data.get('appointment_date')
         appointment_time = data.get('appointment_time')
-        
         if appointment_date and appointment_time:
             existing = Appointment.objects.filter(
                 appointment_date=appointment_date,
                 appointment_time=appointment_time
             ).exclude(status='cancelled')
-            
             if self.instance:
                 existing = existing.exclude(pk=self.instance.pk)
-            
             if existing.exists():
                 raise serializers.ValidationError("This time slot is already booked.")
-        
         return data
-
 
 class ReviewSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source='service.name', read_only=True)
-
     class Meta:
         model = Review
         fields = ['id', 'customer_name', 'rating', 'comment', 'service', 'service_name', 'appointment', 'is_approved', 'created_at']
         read_only_fields = ['is_approved', 'created_at']
-
 
 class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -135,13 +117,11 @@ class ContactMessageSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'email', 'phone', 'subject', 'message', 'admin_reply', 'is_read', 'replied_at', 'created_at']
         read_only_fields = ['created_at', 'replied_at']
 
-
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'user', 'title', 'message', 'notification_type', 'is_read', 'related_contact_message', 'created_at']
         read_only_fields = ['created_at']
-
 
 class TransactionSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
