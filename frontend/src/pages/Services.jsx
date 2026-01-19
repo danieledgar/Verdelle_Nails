@@ -272,13 +272,13 @@ const DetailItem = styled.div`
 `;
 
 const PriceTag = styled.span`
-  color: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme?.colors?.primary || '#c9a684'};
   font-weight: 700;
   font-size: ${({ theme }) => theme.fontSizes.medium};
 `;
 
 const BookButton = styled.button`
-  background: linear-gradient(135deg, ${({ theme }) => theme.colors.primary} 0%, ${({ theme }) => theme.colors.accent} 100%);
+background: linear-gradient(135deg, ${({ theme }) => theme?.colors?.primary || '#c9a684'} 0%, ${({ theme }) => theme?.colors?.accent || '#d4af8e'} 100%);
   color: ${({ theme }) => theme.colors.white};
   border: none;
   padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
