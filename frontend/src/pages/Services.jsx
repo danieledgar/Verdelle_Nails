@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { FaHandSparkles, FaShoePrints, FaShieldAlt, FaMagic, FaPaintBrush, FaLeaf, FaSpa, FaClock } from 'react-icons/fa';
+import { servicesAPI } from '../services/api';
 
 const Services = () => {
   const [categories, setCategories] = useState([]);
@@ -15,9 +16,11 @@ const Services = () => {
 
   const fetchServiceCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/service-categories/');
-      const data = await response.json();
-      setCategories(data.results || data);
+      
+      const response = await servicesAPI.getAll();
+      
+      
+      setCategories(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching service categories:', error);
     } finally {
@@ -113,28 +116,6 @@ const ServicesContainer = styled.div`
   background: linear-gradient(135deg, ${({ theme }) => theme.colors.background} 0%, ${({ theme }) => theme.colors.accent}11 100%);
 `;
 
-const PageHeader = styled.div`
-  background: linear-gradient(135deg, ${({ theme }) => theme.colors.primary} 0%, ${({ theme }) => theme.colors.accent} 100%);
-  color: ${({ theme }) => theme.colors.white};
-  padding: ${({ theme }) => theme.spacing.xxl} ${({ theme }) => theme.spacing.lg};
-  text-align: center;
-`;
-
-const PageTitle = styled.h1`
-  font-family: ${({ theme }) => theme.fonts.heading};
-  font-size: ${({ theme }) => theme.fontSizes.xxxlarge};
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: ${({ theme }) => theme.fontSizes.xxlarge};
-  }
-`;
-
-const PageSubtitle = styled.p`
-  font-size: ${({ theme }) => theme.fontSizes.large};
-  opacity: 0.9;
-`;
-
 const Container = styled.div`
   max-width: 1400px;
   margin: 0 auto;
@@ -160,14 +141,14 @@ const LoadingText = styled.div`
 const EmptyState = styled.div`
   text-align: center;
   padding: ${({ theme }) => theme.spacing.xxl};
-  
+   
   h3 {
     font-family: ${({ theme }) => theme.fonts.heading};
     font-size: ${({ theme }) => theme.fontSizes.xlarge};
     color: ${({ theme }) => theme.colors.secondary};
     margin-bottom: ${({ theme }) => theme.spacing.md};
   }
-  
+   
   p {
     color: ${({ theme }) => theme.colors.textLight};
   }
