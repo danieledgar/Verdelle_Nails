@@ -1,15 +1,30 @@
 import axios from 'axios';
 
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
+let apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+if (!apiBaseUrl.endsWith('/api')) {
+  apiBaseUrl = `${apiBaseUrl.replace(/\/$/, '')}/api`;
+}
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 export const servicesAPI = {
   getAll: () => api.get('/services/'),
