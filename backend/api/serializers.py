@@ -135,3 +135,4 @@ class TransactionSerializer(serializers.ModelSerializer):
                   'initiated_at', 'completed_at', 'account_reference', 'transaction_description']
         read_only_fields = ['user', 'username', 'appointment_id', 'result_code', 'result_description', 
                            'initiated_at', 'account_reference', 'transaction_description']
+        # Force Railway Rebuild - timestamp 1
