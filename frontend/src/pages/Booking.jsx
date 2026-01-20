@@ -46,7 +46,7 @@ const Booking = () => {
 
   const fetchServiceCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/service-categories/');
+      const response = await fetch('${API_BASE}/api/service-categories/');
       const data = await response.json();
       setCategories(data.results || data);
     } catch (error) {
