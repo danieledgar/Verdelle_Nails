@@ -60,7 +60,7 @@ const Appointments = () => {
   const fetchAppointments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/appointments/', {
+      const response = await fetch('${API_BASE}/api/appointments/', {
         headers: {
           'Authorization': `Token ${token}`,
         },
@@ -162,7 +162,7 @@ const Appointments = () => {
     setSubmittingReview(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://127.0.0.1:8000/api/reviews/', {
+      const response = await fetch('${API_BASE}/api/reviews/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
