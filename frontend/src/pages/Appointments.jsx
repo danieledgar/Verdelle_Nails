@@ -4,7 +4,8 @@ import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { FaCalendarAlt, FaClock, FaCheckCircle, FaTimesCircle, FaHourglassHalf, FaMoneyBillWave, FaReceipt, FaPrint, FaStar, FaStarHalfAlt } from 'react-icons/fa';
 
-const API_BASE = process.env.REACT_APP_API_URL;
+// Use environment variable or fallback to hardcoded URL
+const API_BASE = process.env.REACT_APP_API_URL || 'https://verdellenails.up.railway.app/api';
 
 const Appointments = () => {
   const [appointments, setAppointments] = useState([]);
