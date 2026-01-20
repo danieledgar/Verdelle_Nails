@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { galleryAPI } from '../services/api';
 
-const API_BASE = process.env.REACT_APP_API_URL;
+// Use environment variable or fallback to hardcoded URL
+const API_BASE = process.env.REACT_APP_API_URL || 'https://verdellenails.up.railway.app/api';
 
 const Gallery = () => {
   const [images, setImages] = useState([]);
@@ -16,8 +16,16 @@ const Gallery = () => {
 
   const fetchGallery = async () => {
     try {
-      const response = await galleryAPI.getAll();
-      setImages(response.data.results || response.data);
+      console.log('Fetching gallery from:', `${API_BASE}/gallery/`);
+      const response = await fetch(`${API_BASE}/gallery/`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Gallery data:', data);
+      setImages(data.results || data);
     } catch (error) {
       console.error('Error fetching gallery:', error);
     } finally {
@@ -140,9 +148,11 @@ const GalleryGrid = styled.div`
   @media (max-width: 600px) {
     grid-template-columns: repeat(1, 1fr);
   }
+  
   @media (max-width: 450px) {
     gap: ${props => props.theme.spacing.sm};
-  }`;
+  }
+`;
 
 const GalleryItem = styled.div`
   position: relative;
