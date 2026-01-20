@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { FaHandSparkles, FaShoePrints, FaShieldAlt, FaMagic, FaPaintBrush, FaLeaf, FaSpa, FaClock } from 'react-icons/fa';
 import { servicesAPI } from '../services/api';
 
+const API_BASE = process.env.REACT_APP_API_URL;
+
 const Services = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,8 +18,10 @@ const Services = () => {
 
   const fetchServiceCategories = async () => {
     try {
-      const response = await servicesAPI.getAll();
-      setCategories(response.data.results || response.data);
+      const response = await fetch(`${API_BASE}/service-categories/`);
+      const data = await response.json();
+      console.log('Categories data:', data); // Debug log
+      setCategories(data.results || data);
     } catch (error) {
       console.error('Error fetching service categories:', error);
     } finally {
@@ -64,42 +68,90 @@ const Services = () => {
                   <CategoryIcon>{getIcon(category.icon)}</CategoryIcon>
                   <CategoryInfo>
                     <CategoryTitle>{category.name}</CategoryTitle>
-                    <CategoryFocus>{category.focus}</CategoryFocus>
-                    <CategoryDescription>{category.description}</CategoryDescription>
+                    {category.focus && <CategoryFocus>{category.focus}</CategoryFocus>}
+                    {category.description && <CategoryDescription>{category.description}</CategoryDescription>}
                   </CategoryInfo>
                 </CategoryHeader>
 
-                <ServicesGrid>
-                  {category.services && category.services.map((service, svcIndex) => (
-                    <ServiceCard
-                      key={service.id}
-                      as={motion.div}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: catIndex * 0.1 + svcIndex * 0.05 }}
-                      whileHover={{ y: -5, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
-                    >
-                      <ServiceContent>
-                        <ServiceName>{service.name}</ServiceName>
-                        <ServiceDescription>{service.description}</ServiceDescription>
-                        
-                        <ServiceDetails>
-                          <DetailItem>
-                            <FaClock />
-                            <span>{service.duration} min</span>
-                          </DetailItem>
-                          <DetailItem>
-                            <PriceTag>KES {parseFloat(service.price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</PriceTag>
-                          </DetailItem>
-                        </ServiceDetails>
-                      </ServiceContent>
+                {/* Direct services under this category */}
+                {category.services && category.services.length > 0 && (
+                  <ServicesGrid>
+                    {category.services.map((service, svcIndex) => (
+                      <ServiceCard
+                        key={service.id}
+                        as={motion.div}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3, delay: catIndex * 0.1 + svcIndex * 0.05 }}
+                        whileHover={{ y: -5, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+                      >
+                        <ServiceContent>
+                          <ServiceName>{service.name}</ServiceName>
+                          {service.description && <ServiceDescription>{service.description}</ServiceDescription>}
+                          
+                          <ServiceDetails>
+                            <DetailItem>
+                              <FaClock />
+                              <span>{service.duration} min</span>
+                            </DetailItem>
+                            <DetailItem>
+                              <PriceTag>KES {parseFloat(service.price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</PriceTag>
+                            </DetailItem>
+                          </ServiceDetails>
+                        </ServiceContent>
 
-                      <BookButton onClick={() => navigate('/booking', { state: { service } })}>
-                        Book Now
-                      </BookButton>
-                    </ServiceCard>
-                  ))}
-                </ServicesGrid>
+                        <BookButton onClick={() => navigate('/booking', { state: { service } })}>
+                          Book Now
+                        </BookButton>
+                      </ServiceCard>
+                    ))}
+                  </ServicesGrid>
+                )}
+
+                {/* Subcategories with their services */}
+                {category.subcategories && category.subcategories.length > 0 && (
+                  <>
+                    {category.subcategories.map((subcategory, subIndex) => (
+                      <SubcategorySection key={subcategory.id || subIndex}>
+                        <SubcategoryTitle>{subcategory.name}</SubcategoryTitle>
+                        
+                        {subcategory.services && subcategory.services.length > 0 && (
+                          <ServicesGrid>
+                            {subcategory.services.map((service, svcIndex) => (
+                              <ServiceCard
+                                key={service.id}
+                                as={motion.div}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.3, delay: catIndex * 0.1 + subIndex * 0.05 + svcIndex * 0.05 }}
+                                whileHover={{ y: -5, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+                              >
+                                <ServiceContent>
+                                  <ServiceName>{service.name}</ServiceName>
+                                  {service.description && <ServiceDescription>{service.description}</ServiceDescription>}
+                                  
+                                  <ServiceDetails>
+                                    <DetailItem>
+                                      <FaClock />
+                                      <span>{service.duration} min</span>
+                                    </DetailItem>
+                                    <DetailItem>
+                                      <PriceTag>KES {parseFloat(service.price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</PriceTag>
+                                    </DetailItem>
+                                  </ServiceDetails>
+                                </ServiceContent>
+
+                                <BookButton onClick={() => navigate('/booking', { state: { service } })}>
+                                  Book Now
+                                </BookButton>
+                              </ServiceCard>
+                            ))}
+                          </ServicesGrid>
+                        )}
+                      </SubcategorySection>
+                    ))}
+                  </>
+                )}
               </CategorySection>
             ))}
           </>
@@ -158,7 +210,7 @@ const CategorySection = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.xxl};
   background: ${({ theme }) => theme.colors.white};
   border-radius: 16px;
-  padding: ${({ theme }) => theme.spacing.xxl};
+  padding: ${({ theme }) => theme.spacing.xl};
   box-shadow: ${({ theme }) => theme.shadows.medium};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -224,9 +276,26 @@ const CategoryDescription = styled.p`
   line-height: 1.6;
 `;
 
+const SubcategorySection = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const SubcategoryTitle = styled.h3`
+  font-family: ${({ theme }) => theme.fonts.heading};
+  font-size: ${({ theme }) => theme.fontSizes.xlarge};
+  color: ${({ theme }) => theme.colors.secondary};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding-left: ${({ theme }) => theme.spacing.md};
+  border-left: 4px solid ${({ theme }) => theme.colors.primary};
+`;
+
 const ServicesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: ${({ theme }) => theme.spacing.lg};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -244,7 +313,7 @@ const ServiceCard = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 280px;
+  min-height: 220px;
 
   &:hover {
     border-color: ${({ theme }) => theme.colors.primary};
@@ -252,6 +321,7 @@ const ServiceCard = styled.div`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.md};
+    min-height: 200px;
   }
 `;
 
@@ -261,11 +331,12 @@ const ServiceContent = styled.div`
   flex-direction: column;
 `;
 
-const ServiceName = styled.h3`
+const ServiceName = styled.h4`
   font-family: ${({ theme }) => theme.fonts.heading};
   font-size: ${({ theme }) => theme.fontSizes.large};
   color: ${({ theme }) => theme.colors.secondary};
   margin-bottom: ${({ theme }) => theme.spacing.sm};
+  font-weight: 600;
 `;
 
 const ServiceDescription = styled.p`
@@ -287,9 +358,7 @@ const ServiceDetails = styled.div`
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: ${({ theme }) => theme.spacing.xs};
+    flex-wrap: wrap;
   }
 `;
 
