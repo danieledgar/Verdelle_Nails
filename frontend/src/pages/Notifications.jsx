@@ -35,7 +35,7 @@ const Notifications = () => {
   const markAsRead = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/api/notifications/${id}/`, {
+      await fetch(`${API_BASE}/notifications/${id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,
@@ -52,7 +52,7 @@ const Notifications = () => {
   const markAllAsRead = async () => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/api/notifications/mark_all_read/`, {
+      await fetch(`${API_BASE}/notifications/mark_all_read/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
@@ -68,7 +68,7 @@ const Notifications = () => {
     if (window.confirm('Delete this notification?')) {
       try {
         const token = localStorage.getItem('token');
-        await fetch(`${API_BASE}/api/notifications/${id}/`, {
+        await fetch(`${API_BASE}/notifications/${id}/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${token}`,
