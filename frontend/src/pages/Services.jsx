@@ -16,10 +16,7 @@ const Services = () => {
 
   const fetchServiceCategories = async () => {
     try {
-      
       const response = await servicesAPI.getAll();
-      
-      
       setCategories(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching service categories:', error);
@@ -82,18 +79,20 @@ const Services = () => {
                       transition={{ duration: 0.3, delay: catIndex * 0.1 + svcIndex * 0.05 }}
                       whileHover={{ y: -5, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
                     >
-                      <ServiceName>{service.name}</ServiceName>
-                      <ServiceDescription>{service.description}</ServiceDescription>
-                      
-                      <ServiceDetails>
-                        <DetailItem>
-                          <FaClock />
-                          <span>{service.duration} min</span>
-                        </DetailItem>
-                        <DetailItem>
-                          <PriceTag>KES {parseFloat(service.price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</PriceTag>
-                        </DetailItem>
-                      </ServiceDetails>
+                      <ServiceContent>
+                        <ServiceName>{service.name}</ServiceName>
+                        <ServiceDescription>{service.description}</ServiceDescription>
+                        
+                        <ServiceDetails>
+                          <DetailItem>
+                            <FaClock />
+                            <span>{service.duration} min</span>
+                          </DetailItem>
+                          <DetailItem>
+                            <PriceTag>KES {parseFloat(service.price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</PriceTag>
+                          </DetailItem>
+                        </ServiceDetails>
+                      </ServiceContent>
 
                       <BookButton onClick={() => navigate('/booking', { state: { service } })}>
                         Book Now
@@ -110,7 +109,6 @@ const Services = () => {
   );
 };
 
-
 const ServicesContainer = styled.div`
   min-height: calc(100vh - 180px);
   background: linear-gradient(135deg, ${({ theme }) => theme.colors.background} 0%, ${({ theme }) => theme.colors.accent}11 100%);
@@ -121,6 +119,7 @@ const Container = styled.div`
   margin: 0 auto;
   padding: ${({ theme }) => theme.spacing.xxl} ${({ theme }) => theme.spacing.lg};
   padding-top: 120px;
+  
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     padding: ${({ theme }) => theme.spacing.xl} ${({ theme }) => theme.spacing.md};
     padding-top: 100px;
@@ -129,7 +128,8 @@ const Container = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.lg} ${({ theme }) => theme.spacing.sm};
     padding-top: 90px;
-  }`;
+  }
+`;
 
 const LoadingText = styled.div`
   text-align: center;
@@ -160,6 +160,10 @@ const CategorySection = styled.div`
   border-radius: 16px;
   padding: ${({ theme }) => theme.spacing.xxl};
   box-shadow: ${({ theme }) => theme.shadows.medium};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.lg};
+  }
 `;
 
 const CategoryHeader = styled.div`
@@ -173,6 +177,7 @@ const CategoryHeader = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     flex-direction: column;
     text-align: center;
+    align-items: center;
   }
 `;
 
@@ -183,6 +188,11 @@ const CategoryIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: 50px;
+    min-width: auto;
+  }
 `;
 
 const CategoryInfo = styled.div`
@@ -194,6 +204,10 @@ const CategoryTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.xxlarge};
   color: ${({ theme }) => theme.colors.secondary};
   margin-bottom: ${({ theme }) => theme.spacing.xs};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    font-size: ${({ theme }) => theme.fontSizes.xlarge};
+  }
 `;
 
 const CategoryFocus = styled.p`
@@ -217,6 +231,7 @@ const ServicesGrid = styled.div`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
+    gap: ${({ theme }) => theme.spacing.md};
   }
 `;
 
@@ -228,10 +243,22 @@ const ServiceCard = styled.div`
   transition: all ${({ theme }) => theme.transitions.medium};
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  min-height: 280px;
 
   &:hover {
     border-color: ${({ theme }) => theme.colors.primary};
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    padding: ${({ theme }) => theme.spacing.md};
+  }
+`;
+
+const ServiceContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 `;
 
 const ServiceName = styled.h3`
@@ -251,11 +278,19 @@ const ServiceDescription = styled.p`
 
 const ServiceDetails = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.spacing.lg};
+  justify-content: space-between;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.sm} 0;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: ${({ theme }) => theme.spacing.xs};
+  }
 `;
 
 const DetailItem = styled.div`
@@ -272,21 +307,23 @@ const DetailItem = styled.div`
 `;
 
 const PriceTag = styled.span`
-  color: ${({ theme }) => theme?.colors?.primary || '#c9a684'};
+  color: ${({ theme }) => theme.colors.primary};
   font-weight: 700;
   font-size: ${({ theme }) => theme.fontSizes.medium};
 `;
 
 const BookButton = styled.button`
-background: linear-gradient(135deg, ${({ theme }) => theme?.colors?.primary || '#c9a684'} 0%, ${({ theme }) => theme?.colors?.accent || '#d4af8e'} 100%);
+  background: linear-gradient(135deg, ${({ theme }) => theme.colors.primary} 0%, ${({ theme }) => theme.colors.accent} 100%);
   color: ${({ theme }) => theme.colors.white};
   border: none;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  border-radius: 6px;
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  border-radius: 8px;
   font-size: ${({ theme }) => theme.fontSizes.medium};
   font-weight: 600;
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.medium};
+  width: 100%;
+  margin-top: auto;
 
   &:hover {
     transform: translateY(-2px);
