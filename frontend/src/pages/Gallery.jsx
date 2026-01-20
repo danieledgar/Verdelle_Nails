@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { galleryAPI } from '../services/api';
 
+const API_BASE = process.env.REACT_APP_API_URL;
+
 const Gallery = () => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
