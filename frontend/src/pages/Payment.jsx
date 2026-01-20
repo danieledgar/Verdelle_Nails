@@ -72,7 +72,7 @@ const Payment = () => {
     setPaymentStatus('processing');
 
     try {
-      const response = await fetch(`${API_BASE}/api/mpesa/initiate/`, {
+      const response = await fetch(`${API_BASE}/mpesa/initiate/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ const Payment = () => {
   const checkPaymentStatus = async () => {
     try {
       const response = await fetch(
-        `${API_BASE}/api/mpesa/status/${appointment.id}/`
+        `${API_BASE}/mpesa/status/${appointment.id}/`
       );
       const data = await response.json();
 
@@ -137,7 +137,7 @@ const Payment = () => {
     setMessage('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/mpesa/verify/`, {
+      const response = await fetch(`${API_BASE}/mpesa/verify/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
