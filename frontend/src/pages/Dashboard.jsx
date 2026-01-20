@@ -188,5 +188,48 @@ const Dashboard = () => {
     </Container>
   );
 };
+// Styled components for About Section / Stats
+const AboutSection = styled.section`
+  margin-top: ${({ theme }) => theme.spacing.xxxl};
+`;
+
+const SectionTitle = styled.h2`
+  font-size: ${({ theme }) => theme.fontSizes.xxlarge};
+  font-family: ${({ theme }) => theme.fonts.heading};
+  color: ${({ theme }) => theme.colors.secondary};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const AboutText = styled.p`
+  font-size: ${({ theme }) => theme.fontSizes.medium};
+  color: ${({ theme }) => theme.colors.text};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  line-height: 1.6;
+`;
+
+const AboutStats = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.xl};
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  flex-wrap: wrap;
+`;
+
+const StatItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const StatNumber = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.xxlarge};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const StatLabel = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.medium};
+  color: ${({ theme }) => theme.colors.textLight};
+`;
+
 
 export default Dashboard;
