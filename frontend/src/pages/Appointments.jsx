@@ -62,11 +62,17 @@ const Appointments = () => {
   const fetchAppointments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE}/appointments/', {
+      console.log('Fetching from:', `${API_BASE}/appointments/`); // Debug log
+      const response = await fetch(`${API_BASE}/appointments/`, {
         headers: {
           'Authorization': `Token ${token}`,
         },
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       const appointmentsList = data.results || data;
       // Sort by appointment date and time, most recent first
@@ -164,7 +170,8 @@ const Appointments = () => {
     setSubmittingReview(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE}/reviews/', {
+      console.log('Submitting review to:', `${API_BASE}/reviews/`); // Debug log
+      const response = await fetch(`${API_BASE}/reviews/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
