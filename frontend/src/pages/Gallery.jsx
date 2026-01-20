@@ -19,22 +19,25 @@ const Gallery = () => {
   // Function to convert relative URLs to absolute URLs
   const getAbsoluteImageUrl = (relativeUrl) => {
     if (!relativeUrl) return '';
-    
+
     // If it's already an absolute URL, return it
     if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
       return relativeUrl;
     }
-    
-    // If it starts with /media/, prepend the backend URL
-    if (relativeUrl.startsWith('/media/')) {
+
+    // If it starts with /media/ or /api_galleryimage/, prepend the backend URL
+    if (
+      relativeUrl.startsWith('/media/') ||
+      relativeUrl.startsWith('/api_galleryimage/')
+    ) {
       return `${BACKEND_BASE}${relativeUrl}`;
     }
-    
-    // If it's just a filename, construct the URL
+
+    // If it's just a filename, construct the URL (guessing /api_galleryimage/)
     if (relativeUrl.includes('.')) {
-      return `${BACKEND_BASE}/media/${relativeUrl}`;
+      return `${BACKEND_BASE}/api_galleryimage/${relativeUrl}`;
     }
-    
+
     return relativeUrl;
   };
 
