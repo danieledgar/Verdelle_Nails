@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { appointmentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
+const API_BASE = process.env.REACT_APP_API_URL;
+
 const Booking = () => {
   const location = useLocation();
   const navigate = useNavigate();
