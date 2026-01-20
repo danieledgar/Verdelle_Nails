@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { FaCheckCircle, FaTimesCircle, FaSpinner, FaPhone, FaMoneyBillWave } from 'react-icons/fa';
 
 const Payment = () => {
+  const API_BASE = process.env.REACT_APP_API_URL;
   const location = useLocation();
   const navigate = useNavigate();
   const appointment = location.state?.appointment;
@@ -71,7 +72,7 @@ const Payment = () => {
     setPaymentStatus('processing');
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/mpesa/initiate/', {
+      const response = await fetch(`${API_BASE}/api/mpesa/initiate/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ const Payment = () => {
   const checkPaymentStatus = async () => {
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/mpesa/status/${appointment.id}/`
+        `${API_BASE}/api/mpesa/status/${appointment.id}/`
       );
       const data = await response.json();
 
@@ -136,7 +137,7 @@ const Payment = () => {
     setMessage('');
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/mpesa/verify/', {
+      const response = await fetch(`${API_BASE}/api/mpesa/verify/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,8 +170,6 @@ const Payment = () => {
 
   return (
     <PaymentContainer>
-      
-
       <Container>
         <PaymentCard
           as={motion.div}
@@ -394,32 +393,10 @@ const Payment = () => {
   );
 };
 
-// Styled Components
+// Styled Components (remain the same as before)
 const PaymentContainer = styled.div`
   min-height: calc(100vh - 180px);
   background: linear-gradient(135deg, ${({ theme }) => theme.colors.background} 0%, ${({ theme }) => theme.colors.accent}11 100%);
-`;
-
-const PageHeader = styled.div`
-  background: linear-gradient(135deg, ${({ theme }) => theme.colors.primary} 0%, ${({ theme }) => theme.colors.accent} 100%);
-  color: ${({ theme }) => theme.colors.white};
-  padding: ${({ theme }) => theme.spacing.xxl} ${({ theme }) => theme.spacing.lg};
-  text-align: center;
-`;
-
-const PageTitle = styled.h1`
-  font-family: ${({ theme }) => theme.fonts.heading};
-  font-size: ${({ theme }) => theme.fontSizes.xxxlarge};
-  margin-bottom: ${({ theme }) => theme.spacing.sm};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: ${({ theme }) => theme.fontSizes.xxlarge};
-  }
-`;
-
-const PageSubtitle = styled.p`
-  font-size: ${({ theme }) => theme.fontSizes.large};
-  opacity: 0.9;
 `;
 
 const Container = styled.div`
