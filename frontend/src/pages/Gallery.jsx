@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 
 // Use environment variable or fallback to hardcoded URL
 const API_BASE = process.env.REACT_APP_API_URL || 'https://verdellenails.up.railway.app/api';
+// Add base URL for media files
+const BACKEND_BASE = process.env.REACT_APP_BACKEND_URL || 'https://verdellenails.up.railway.app';
 
 const Gallery = () => {
   const [images, setImages] = useState([]);
@@ -13,6 +15,28 @@ const Gallery = () => {
   useEffect(() => {
     fetchGallery();
   }, []);
+
+  // Function to convert relative URLs to absolute URLs
+  const getAbsoluteImageUrl = (relativeUrl) => {
+    if (!relativeUrl) return '';
+    
+    // If it's already an absolute URL, return it
+    if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+      return relativeUrl;
+    }
+    
+    // If it starts with /media/, prepend the backend URL
+    if (relativeUrl.startsWith('/media/')) {
+      return `${BACKEND_BASE}${relativeUrl}`;
+    }
+    
+    // If it's just a filename, construct the URL
+    if (relativeUrl.includes('.')) {
+      return `${BACKEND_BASE}/media/${relativeUrl}`;
+    }
+    
+    return relativeUrl;
+  };
 
   const fetchGallery = async () => {
     try {
@@ -25,7 +49,17 @@ const Gallery = () => {
       
       const data = await response.json();
       console.log('Gallery data:', data);
-      setImages(data.results || data);
+      
+      // Process images to convert URLs to absolute
+      const processedImages = (data.results || data).map(image => ({
+        ...image,
+        // Store original image URL for reference
+        original_image: image.image,
+        // Convert to absolute URL
+        image: getAbsoluteImageUrl(image.image)
+      }));
+      
+      setImages(processedImages);
     } catch (error) {
       console.error('Error fetching gallery:', error);
     } finally {
@@ -63,7 +97,16 @@ const Gallery = () => {
                 whileHover={{ scale: 1.05 }}
                 onClick={() => openLightbox(image)}
               >
-                <GalleryImage src={image.image} alt={image.title} />
+                <GalleryImage 
+                  src={image.image} 
+                  alt={image.title}
+                  onError={(e) => {
+                    console.error('Failed to load image:', image.image);
+                    console.log('Original URL:', image.original_image);
+                    // Show a placeholder if image fails to load
+                    e.target.src = 'https://via.placeholder.com/400x400/FFC9C9/333333?text=Image+Not+Available';
+                  }}
+                />
                 <GalleryOverlay>
                   <GalleryTitle>{image.title}</GalleryTitle>
                   {image.service_name && (
@@ -80,7 +123,14 @@ const Gallery = () => {
         <Lightbox onClick={closeLightbox}>
           <LightboxContent onClick={(e) => e.stopPropagation()}>
             <CloseButton onClick={closeLightbox}>&times;</CloseButton>
-            <LightboxImage src={selectedImage.image} alt={selectedImage.title} />
+            <LightboxImage 
+              src={selectedImage.image} 
+              alt={selectedImage.title}
+              onError={(e) => {
+                console.error('Failed to load lightbox image:', selectedImage.image);
+                e.target.src = 'https://via.placeholder.com/600x400/FFC9C9/333333?text=Image+Not+Available';
+              }}
+            />
             <LightboxInfo>
               <h3>{selectedImage.title}</h3>
               {selectedImage.description && <p>{selectedImage.description}</p>}
@@ -95,24 +145,10 @@ const Gallery = () => {
   );
 };
 
+// All styled components remain exactly the same...
 const GalleryContainer = styled.div`
   min-height: 100vh;
   padding-bottom: ${props => props.theme.spacing.xxl};
-`;
-
-const PageHeader = styled.div`
-  background: linear-gradient(135deg, rgba(201, 166, 132, 0.1) 0%, rgba(212, 175, 142, 0.1) 100%);
-  padding: ${props => props.theme.spacing.xxl} ${props => props.theme.spacing.lg};
-  text-align: center;
-`;
-
-const PageTitle = styled.h1`
-  margin-bottom: ${props => props.theme.spacing.md};
-`;
-
-const PageSubtitle = styled.p`
-  font-size: ${props => props.theme.fontSizes.large};
-  color: ${props => props.theme.colors.textLight};
 `;
 
 const Container = styled.div`
