@@ -60,7 +60,7 @@ const Appointments = () => {
   const fetchAppointments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE}/api/appointments/', {
+      const response = await fetch('${API_BASE}/appointments/', {
         headers: {
           'Authorization': `Token ${token}`,
         },
@@ -162,7 +162,7 @@ const Appointments = () => {
     setSubmittingReview(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_BASE}/api/reviews/', {
+      const response = await fetch('${API_BASE}/reviews/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
