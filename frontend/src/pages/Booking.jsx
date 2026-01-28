@@ -33,10 +33,66 @@ const Booking = () => {
   }, []);
 
   useEffect(() => {
+    // Check authentication on component mount
+    const checkAuth = () => {
+      const token = localStorage.getItem('token');
+      console.log('🔐 Checking authentication...');
+      console.log('Token exists:', !!token);
+      console.log('Token length:', token?.length);
+      
+      if (!token || token === 'null' || token === 'undefined' || token === '') {
+        console.warn('⚠️ No valid token found');
+        setMessage({
+          type: 'error',
+          text: 'Please log in to book an appointment.',
+        });
+        
+        // Redirect to login after showing message
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { 
+              from: '/booking',
+              message: 'Please log in to book an appointment' 
+            } 
+          });
+        }, 2000);
+      } else {
+        console.log('✅ User is authenticated');
+      }
+    };
+    
+    // Test localStorage availability
+    try {
+      const testKey = '__test__';
+      localStorage.setItem(testKey, 'test');
+      const value = localStorage.getItem(testKey);
+      localStorage.removeItem(testKey);
+      
+      if (value !== 'test') {
+        console.error('❌ localStorage is not working correctly');
+        setMessage({
+          type: 'error',
+          text: 'Your browser storage is not working. Please check your browser settings.',
+        });
+      } else {
+        console.log('✅ localStorage is working');
+        checkAuth();
+      }
+    } catch (e) {
+      console.error('❌ localStorage is blocked:', e);
+      setMessage({
+        type: 'error',
+        text: 'Your browser is blocking storage. Please disable Private Browsing mode.',
+      });
+    }
+  }, [navigate]);
+
+  useEffect(() => {
     fetchServiceCategories();
     
     // Auto-fill user details if logged in
     if (user) {
+      console.log('📝 Auto-filling user details:', user);
       setFormData(prev => ({
         ...prev,
         customer_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
@@ -48,7 +104,7 @@ const Booking = () => {
 
   const fetchServiceCategories = async () => {
     try {
-      console.log('Fetching categories from:', `${API_BASE}/service-categories/`);
+      console.log('📦 Fetching categories from:', `${API_BASE}/service-categories/`);
       const response = await fetch(`${API_BASE}/service-categories/`);
       
       if (!response.ok) {
@@ -56,10 +112,10 @@ const Booking = () => {
       }
       
       const data = await response.json();
-      console.log('Categories loaded:', data);
+      console.log('✅ Categories loaded:', data.length || data.results?.length, 'categories');
       setCategories(data.results || data);
     } catch (error) {
-      console.error('Error fetching service categories:', error);
+      console.error('❌ Error fetching service categories:', error);
       setMessage({
         type: 'error',
         text: 'Failed to load services. Please refresh the page.',
@@ -105,66 +161,132 @@ const Booking = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      console.log('Submitting booking with data:', formData);
-      console.log('API endpoint:', `${API_BASE}/appointments/`);
+      console.log('=== 📤 BOOKING SUBMISSION START ===');
+      console.log('Form data:', formData);
       
-      // Get authentication token
-      const token = localStorage.getItem('token');
+      // Get authentication token with debugging
+      let token = localStorage.getItem('token');
+      
+      // Try sessionStorage as fallback
+      if (!token || token === 'null' || token === 'undefined' || token === '') {
+        console.log('⚠️ Token not in localStorage, trying sessionStorage...');
+        token = sessionStorage.getItem('token');
+      }
+      
       console.log('Token exists:', !!token);
+      console.log('Token type:', typeof token);
+      console.log('Token length:', token?.length);
+      console.log('Token first 10 chars:', token?.substring(0, 10) + '...');
       
-      if (!token) {
-        throw new Error('Authentication required. Please log in again.');
+      // Check if token exists
+      if (!token || token === 'null' || token === 'undefined' || token === '') {
+        console.error('❌ No valid token found in localStorage or sessionStorage');
+        throw new Error('You are not logged in. Please log in and try again.');
       }
 
       // Validate required fields
-      if (!formData.customer_name || !formData.customer_email || !formData.customer_phone || !formData.service || !formData.appointment_date || !formData.appointment_time) {
-        throw new Error('Please fill in all required fields.');
+      const requiredFields = {
+        customer_name: 'Customer name',
+        customer_email: 'Email',
+        customer_phone: 'Phone number',
+        service: 'Service',
+        appointment_date: 'Appointment date',
+        appointment_time: 'Appointment time'
+      };
+
+      for (const [field, label] of Object.entries(requiredFields)) {
+        if (!formData[field]) {
+          throw new Error(`${label} is required`);
+        }
       }
 
-      // Make the API call directly with fetch for better error handling
+      console.log('✅ All validations passed');
+      console.log('API endpoint:', `${API_BASE}/appointments/`);
+
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Token ${token}`,
+      };
+      
+      console.log('Request headers:', {
+        'Content-Type': headers['Content-Type'],
+        'Authorization': 'Token ' + token.substring(0, 20) + '...'
+      });
+
+      // Make the API call
+      console.log('📤 Sending POST request...');
       const response = await fetch(`${API_BASE}/appointments/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`,
-        },
+        headers: headers,
         body: JSON.stringify(formData),
       });
 
-      console.log('Response status:', response.status);
+      console.log('📥 Response received');
+      console.log('Status:', response.status, response.statusText);
       console.log('Response ok:', response.ok);
+
+      // Check for authentication error specifically
+      if (response.status === 401 || response.status === 403) {
+        console.error('❌ Authentication failed:', response.status);
+        
+        // Clear invalid token
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
+        
+        throw new Error('Your session has expired. Redirecting to login...');
+      }
 
       // Try to parse the response
       let appointmentData;
       const contentType = response.headers.get('content-type');
+      console.log('Response content-type:', contentType);
       
       if (contentType && contentType.includes('application/json')) {
         appointmentData = await response.json();
-        console.log('Appointment data received:', appointmentData);
+        console.log('✅ Response parsed as JSON');
+        console.log('Response data:', appointmentData);
       } else {
         const textResponse = await response.text();
-        console.error('Non-JSON response:', textResponse);
+        console.error('❌ Non-JSON response:', textResponse);
         throw new Error('Server returned invalid response format');
       }
 
       // Check if request was successful
       if (!response.ok) {
         // Handle error response
-        const errorMessage = appointmentData.error 
-          || appointmentData.message 
-          || appointmentData.detail 
-          || Object.values(appointmentData).flat().join(', ')
-          || 'Failed to book appointment';
+        let errorMessage;
         
-        console.error('Booking failed:', errorMessage);
+        if (appointmentData.error) {
+          errorMessage = appointmentData.error;
+        } else if (appointmentData.detail) {
+          errorMessage = appointmentData.detail;
+        } else if (appointmentData.message) {
+          errorMessage = appointmentData.message;
+        } else if (appointmentData.non_field_errors) {
+          errorMessage = Array.isArray(appointmentData.non_field_errors) 
+            ? appointmentData.non_field_errors.join(', ') 
+            : appointmentData.non_field_errors;
+        } else {
+          // Try to construct error from all fields
+          errorMessage = Object.entries(appointmentData)
+            .filter(([key]) => key !== 'status')
+            .map(([key, value]) => {
+              const val = Array.isArray(value) ? value.join(', ') : value;
+              return `${key}: ${val}`;
+            })
+            .join('; ') || 'Failed to book appointment';
+        }
+        
+        console.error('❌ Booking failed:', errorMessage);
         throw new Error(errorMessage);
       }
 
-      // Success! Now get the selected service details for the payment page
-      const selectedService = allServices.find(s => s.id === parseInt(formData.service));
+      console.log('✅ Booking successful! Appointment ID:', appointmentData.id);
       
+      // Get the selected service details for the payment page
+      const selectedService = allServices.find(s => s.id === parseInt(formData.service));
       console.log('Selected service:', selectedService);
-      console.log('Navigating to payment page...');
 
       // Prepare appointment object with all necessary fields for payment page
       const appointmentForPayment = {
@@ -180,18 +302,22 @@ const Booking = () => {
         payment_status: appointmentData.payment_status || 'pending',
       };
 
-      console.log('Appointment object for payment:', appointmentForPayment);
+      console.log('Payment page data:', appointmentForPayment);
+      console.log('✅ Navigating to payment page...');
 
       // Redirect to payment page with appointment details
       navigate('/payment', { 
         state: { 
           appointment: appointmentForPayment
         },
-        replace: false // Don't replace history so user can go back
+        replace: false
       });
 
+      console.log('=== ✅ BOOKING SUBMISSION END ===');
+
     } catch (error) {
-      console.error('Booking error details:', error);
+      console.error('=== ❌ BOOKING ERROR ===');
+      console.error('Error type:', error.name);
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       
@@ -200,6 +326,18 @@ const Booking = () => {
         text: error.message || 'Failed to book appointment. Please try again.',
       });
       setLoading(false);
+      
+      // If authentication error, redirect to login
+      if (error.message.includes('logged in') || error.message.includes('session') || error.message.includes('Authentication')) {
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { 
+              from: '/booking',
+              message: error.message
+            } 
+          });
+        }, 2000);
+      }
     }
   };
 
@@ -355,6 +493,7 @@ const Booking = () => {
   );
 };
 
+// Styled components remain the same...
 const BookingContainer = styled.div`
   min-height: 100vh;
   padding-bottom: ${props => props.theme.spacing.xxl};
@@ -439,11 +578,6 @@ const Input = styled.input`
     outline: none;
     border-color: ${props => props.theme.colors.primary};
   }
-
-  &:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
 `;
 
 const Select = styled.select`
@@ -459,11 +593,6 @@ const Select = styled.select`
     outline: none;
     border-color: ${props => props.theme.colors.primary};
   }
-
-  &:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
 `;
 
 const TextArea = styled.textarea`
@@ -478,11 +607,6 @@ const TextArea = styled.textarea`
   &:focus {
     outline: none;
     border-color: ${props => props.theme.colors.primary};
-  }
-
-  &:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
   }
 `;
 
@@ -508,11 +632,6 @@ const SubmitButton = styled.button`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none;
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(0);
   }
 `;
 
@@ -576,10 +695,6 @@ const BookingTypeButton = styled.button`
     background: ${props => props.active 
       ? props.theme.colors.primary 
       : props.theme.colors.primary}11;
-  }
-
-  &:active {
-    transform: translateY(0);
   }
 
   @media (max-width: ${props => props.theme.breakpoints.mobile}) {
