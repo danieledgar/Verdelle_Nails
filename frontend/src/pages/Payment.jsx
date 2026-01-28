@@ -4,15 +4,17 @@ import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { FaCheckCircle, FaTimesCircle, FaSpinner, FaPhone, FaMoneyBillWave } from 'react-icons/fa';
 
+// IMPORTANT: Use environment variable or fallback
+const API_BASE = process.env.REACT_APP_API_URL || 'https://verdellenails.up.railway.app/api';
+
 const Payment = () => {
-  const API_BASE = process.env.REACT_APP_API_URL;
   const location = useLocation();
   const navigate = useNavigate();
   const appointment = location.state?.appointment;
   
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('idle'); // idle, processing, checking, success, failed, timeout, manual
+  const [paymentStatus, setPaymentStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const [checkoutRequestId, setCheckoutRequestId] = useState('');
   const [checkCount, setCheckCount] = useState(0);
@@ -27,16 +29,14 @@ const Payment = () => {
 
   useEffect(() => {
     let interval;
-    const MAX_CHECKS = 40; // Stop after 2 minutes (40 checks * 3 seconds)
+    const MAX_CHECKS = 40;
     
     if (paymentStatus === 'checking' && appointment && checkCount < MAX_CHECKS) {
-      // Poll for payment status every 3 seconds
       interval = setInterval(() => {
         checkPaymentStatus();
         setCheckCount(prev => prev + 1);
       }, 3000);
     } else if (checkCount >= MAX_CHECKS && paymentStatus === 'checking') {
-      // Timeout - stop checking
       setPaymentStatus('timeout');
       setMessage('Payment verification timed out. Please check your M-Pesa messages or contact support.');
     }
@@ -47,10 +47,8 @@ const Payment = () => {
   }, [paymentStatus, appointment, checkCount]);
 
   const formatPhoneNumber = (phone) => {
-    // Remove spaces and special characters
     phone = phone.replace(/[\s\-\(\)]/g, '');
     
-    // Convert to Kenyan format (254XXXXXXXXX)
     if (phone.startsWith('0')) {
       return '254' + phone.substring(1);
     } else if (phone.startsWith('+254')) {
@@ -72,6 +70,7 @@ const Payment = () => {
     setPaymentStatus('processing');
 
     try {
+      console.log('Initiating payment to:', `${API_BASE}/mpesa/initiate/`);
       const response = await fetch(`${API_BASE}/mpesa/initiate/`, {
         method: 'POST',
         headers: {
@@ -84,11 +83,21 @@ const Payment = () => {
       });
 
       const data = await response.json();
+      console.log('Payment initiation response:', data);
+
+      if (!response.ok) {
+        const errorMsg = data.error || data.message || data.detail || 'Payment initiation failed';
+        setMessage(`Error: ${errorMsg}`);
+        setPaymentStatus('failed');
+        setLoading(false);
+        return;
+      }
 
       if (data.success) {
         setCheckoutRequestId(data.CheckoutRequestID);
         setMessage(data.message || 'Please check your phone and enter your M-Pesa PIN');
         setPaymentStatus('checking');
+        setCheckCount(0);
       } else {
         setMessage(data.error || 'Payment initiation failed. Please try again.');
         setPaymentStatus('failed');
@@ -104,9 +113,7 @@ const Payment = () => {
 
   const checkPaymentStatus = async () => {
     try {
-      const response = await fetch(
-        `${API_BASE}/mpesa/status/${appointment.id}/`
-      );
+      const response = await fetch(`${API_BASE}/mpesa/status/${appointment.id}/`);
       const data = await response.json();
 
       if (data.payment_status === 'completed') {
@@ -137,22 +144,33 @@ const Payment = () => {
     setMessage('');
 
     try {
+      const payload = {
+        appointment_id: appointment.id,
+        mpesa_receipt: mpesaReceipt.trim().toUpperCase(),
+      };
+      console.log('Verifying receipt. Payload:', payload);
+      
       const response = await fetch(`${API_BASE}/mpesa/verify/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          appointment_id: appointment.id,
-          mpesa_receipt: mpesaReceipt.trim().toUpperCase(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+      console.log('Verification response:', data);
+
+      if (!response.ok) {
+        const errorMsg = data.error || data.message || data.detail || JSON.stringify(data);
+        setMessage(`Verification failed: ${errorMsg}`);
+        setVerifyingReceipt(false);
+        return;
+      }
 
       if (data.success) {
         setPaymentStatus('success');
-        setMessage(data.message);
+        setMessage(data.message || 'Payment verified successfully!');
       } else {
         setMessage(data.error || 'Verification failed. Please check your receipt number.');
       }
@@ -177,7 +195,6 @@ const Payment = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Appointment Summary */}
           <Section>
             <SectionTitle>Appointment Details</SectionTitle>
             <DetailRow>
@@ -202,15 +219,13 @@ const Payment = () => {
             </TotalRow>
           </Section>
 
-          {/* Payment Status Display */}
           {paymentStatus === 'success' && (
             <StatusMessage type="success">
               <FaCheckCircle size={50} />
               <StatusTitle>Payment Successful!</StatusTitle>
               <StatusText>{message}</StatusText>
-              <StatusText>Transaction ID: {appointment.mpesa_transaction_id || 'Pending'}</StatusText>
-              <BackButton onClick={() => navigate('/dashboard')}>
-                Go to Dashboard
+              <BackButton onClick={() => navigate('/appointments')}>
+                View My Appointments
               </BackButton>
             </StatusMessage>
           )}
@@ -220,7 +235,6 @@ const Payment = () => {
               <FaTimesCircle size={50} />
               <StatusTitle>Payment Cancelled</StatusTitle>
               <StatusText>{message}</StatusText>
-              <StatusText>You cancelled the payment request or didn't enter your PIN in time.</StatusText>
               <RetryButton onClick={() => {
                 setPaymentStatus('idle');
                 setCheckCount(0);
@@ -242,6 +256,7 @@ const Payment = () => {
               <RetryButton onClick={() => {
                 setPaymentStatus('idle');
                 setCheckCount(0);
+                setMessage('');
               }}>
                 Try Again
               </RetryButton>
@@ -260,8 +275,8 @@ const Payment = () => {
               <RetryButton onClick={() => setPaymentStatus('manual')}>
                 Verify Payment Manually
               </RetryButton>
-              <BackButton onClick={() => navigate('/dashboard')}>
-                Go to Dashboard
+              <BackButton onClick={() => navigate('/appointments')}>
+                View Appointments
               </BackButton>
             </StatusMessage>
           )}
@@ -270,7 +285,7 @@ const Payment = () => {
             <Section>
               <SectionTitle>Manual Payment Verification</SectionTitle>
               <InfoText>
-                If you've already paid via M-Pesa, enter your M-Pesa receipt number below to verify your payment.
+                If you've already paid via M-Pesa, enter your M-Pesa receipt number below.
                 You can find this in your M-Pesa message (e.g., SH12XY34ZA).
               </InfoText>
               
@@ -285,7 +300,7 @@ const Payment = () => {
                   maxLength={12}
                 />
                 <HintText>
-                  Enter the M-Pesa confirmation code from your SMS (usually 10 characters)
+                  Enter the M-Pesa confirmation code from your SMS
                 </HintText>
               </FormGroup>
 
@@ -308,7 +323,7 @@ const Payment = () => {
 
               <SecurityNote>
                 <small>
-                  Can't find your receipt? Check your M-Pesa messages or dial *334# to view your transaction history.
+                  Can't find your receipt? Check your M-Pesa messages or dial *334#
                 </small>
               </SecurityNote>
               
@@ -316,6 +331,7 @@ const Payment = () => {
                 setPaymentStatus('idle');
                 setCheckCount(0);
                 setMpesaReceipt('');
+                setMessage('');
               }}>
                 Back to Payment
               </BackButton>
@@ -336,7 +352,6 @@ const Payment = () => {
             </StatusMessage>
           )}
 
-          {/* Payment Form */}
           {(paymentStatus === 'idle' || paymentStatus === 'processing') && (
             <Section>
               <SectionTitle>
@@ -358,11 +373,11 @@ const Payment = () => {
                   disabled={loading || paymentStatus === 'processing'}
                 />
                 <HintText>
-                  Enter the phone number registered with M-Pesa (e.g., 0712345678)
+                  Enter phone number (e.g., 0712345678)
                 </HintText>
               </FormGroup>
 
-              {message && paymentStatus === 'processing' && (
+              {message && (
                 <InfoMessage>{message}</InfoMessage>
               )}
 
@@ -381,8 +396,7 @@ const Payment = () => {
 
               <SecurityNote>
                 <small>
-                  🔒 Your payment is secure and processed through Safaricom M-Pesa.
-                  You will receive a prompt on your phone to enter your M-Pesa PIN.
+                  🔒 Secure payment via Safaricom M-Pesa
                 </small>
               </SecurityNote>
             </Section>
@@ -393,10 +407,10 @@ const Payment = () => {
   );
 };
 
-// Styled Components (remain the same as before)
 const PaymentContainer = styled.div`
   min-height: calc(100vh - 180px);
   background: linear-gradient(135deg, ${({ theme }) => theme.colors.background} 0%, ${({ theme }) => theme.colors.accent}11 100%);
+  padding-top: 100px;
 `;
 
 const Container = styled.div`
@@ -411,10 +425,6 @@ const Container = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.lg} ${({ theme }) => theme.spacing.sm};
   }
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.sm};
-  }
 `;
 
 const PaymentCard = styled.div`
@@ -425,12 +435,6 @@ const PaymentCard = styled.div`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     padding: ${({ theme }) => theme.spacing.lg};
-    border-radius: 12px;
-  }
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.md};
-    border-radius: 10px;
   }
 `;
 
@@ -439,10 +443,6 @@ const Section = styled.div`
   
   &:last-child {
     margin-bottom: 0;
-  }
-
-  @media (max-width: 450px) {
-    margin-bottom: ${({ theme }) => theme.spacing.lg};
   }
 `;
 
@@ -457,11 +457,6 @@ const SectionTitle = styled.h2`
   
   svg {
     color: ${({ theme }) => theme.colors.primary};
-  }
-
-  @media (max-width: 450px) {
-    font-size: ${({ theme }) => theme.fontSizes.large};
-    margin-bottom: ${({ theme }) => theme.spacing.md};
   }
 `;
 
@@ -504,15 +499,11 @@ const StatusMessage = styled.div`
   padding: ${({ theme }) => theme.spacing.xxl};
   
   svg {
-    color: ${({ type, theme }) => 
+    color: ${({ type }) => 
       type === 'success' ? '#28a745' : 
       type === 'error' ? '#dc3545' : 
-      theme.colors.primary};
+      type === 'warning' ? '#ffc107' : '#c9a684'};
     margin-bottom: ${({ theme }) => theme.spacing.lg};
-  }
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.lg};
   }
 `;
 
@@ -581,11 +572,6 @@ const PhoneInput = styled.input`
     background-color: ${({ theme }) => theme.colors.border};
     cursor: not-allowed;
   }
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.sm};
-    font-size: ${({ theme }) => theme.fontSizes.small};
-  }
 `;
 
 const HintText = styled.small`
@@ -601,11 +587,6 @@ const InfoMessage = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
   border-radius: 4px;
   color: ${({ theme }) => theme.colors.text};
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.sm};
-    font-size: ${({ theme }) => theme.fontSizes.small};
-  }
 `;
 
 const PayButton = styled.button`
@@ -643,24 +624,13 @@ const PayButton = styled.button`
     cursor: not-allowed;
     transform: none;
   }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    &:hover:not(:disabled) {
-      transform: none;
-    }
-  }
-
-  @media (max-width: 450px) {
-    padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-    font-size: ${({ theme }) => theme.fontSizes.medium};
-  }
 `;
 
 const BackButton = styled(PayButton)`
   background: ${({ theme }) => theme.colors.secondary};
   margin-top: ${({ theme }) => theme.spacing.lg};
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.text};
   }
 `;

@@ -20,22 +20,24 @@ const Gallery = () => {
   const getAbsoluteImageUrl = (relativeUrl) => {
     if (!relativeUrl) return '';
 
-    // If it's already an absolute URL, return it
+    // Already absolute
     if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
       return relativeUrl;
     }
 
-    // If it starts with /media/ or /api_galleryimage/, prepend the backend URL
-    if (
-      relativeUrl.startsWith('/media/') ||
-      relativeUrl.startsWith('/api_galleryimage/')
-    ) {
+    // If it starts with /media/ already
+    if (relativeUrl.startsWith('/media/')) {
       return `${BACKEND_BASE}${relativeUrl}`;
     }
 
-    // If it's just a filename, construct the URL (guessing /api_galleryimage/)
+    // If it starts with /api_galleryimage/, prepend /media
+    if (relativeUrl.startsWith('/api_galleryimage/')) {
+      return `${BACKEND_BASE}/media${relativeUrl}`;
+    }
+
+    // If it's just a filename, guess /media/api_galleryimage/
     if (relativeUrl.includes('.')) {
-      return `${BACKEND_BASE}/api_galleryimage/${relativeUrl}`;
+      return `${BACKEND_BASE}/media/api_galleryimage/${relativeUrl}`;
     }
 
     return relativeUrl;
