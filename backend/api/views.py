@@ -462,25 +462,47 @@ def mpesa_callback(request):
         })
 
 
+# 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def check_payment_status(request, appointment_id):
     """
-    Check payment status by querying M-Pesa API
-    This is used when the callback doesn't arrive or for manual checking
+    Check payment status WITHOUT modifying the appointment status during polling.
+    Only the callback should update to 'completed' or 'failed'.
     """
     try:
         logger.info(f"Checking payment status for appointment {appointment_id}")
         
-        try:
-            appointment = Appointment.objects.get(id=appointment_id)
-        except Appointment.DoesNotExist:
-            logger.error(f"Appointment {appointment_id} not found")
-            return Response(
-                {'error': 'Appointment not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        appointment = Appointment.objects.get(id=appointment_id)
         
+        # CRITICAL: Don't query M-Pesa during polling - just return current status
+        # Let the callback handle status updates
+        
+        return Response({
+            'appointment_id': appointment.id,
+            'payment_status': appointment.payment_status,
+            'mpesa_transaction_id': appointment.mpesa_transaction_id,
+            'amount_paid': float(appointment.amount_paid) if appointment.amount_paid else None,
+            'payment_date': appointment.payment_date,
+            'appointment_status': appointment.status
+        })
+        
+    except Appointment.DoesNotExist:
+        logger.error(f"Appointment {appointment_id} not found")
+        return Response(
+            {'error': 'Appointment not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error checking payment status: {str(e)}")
+        return Response(
+            {
+                'error': str(e),
+                'appointment_id': appointment_id,
+                'payment_status': 'error'
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
         # If already completed, return current status
         if appointment.payment_status == 'completed':
             logger.info(f"Appointment {appointment_id} already completed")
