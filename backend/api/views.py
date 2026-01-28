@@ -6,7 +6,6 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import logout
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Service, ServiceCategory, GalleryImage, Appointment, Review, ContactMessage, User, Transaction, Notification
 from .serializers import (
@@ -17,6 +16,7 @@ from .serializers import (
 from .mpesa import MpesaClient
 import logging
 import json
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +82,6 @@ def update_profile_view(request):
 
 
 class ServiceCategoryViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for service categories with nested services.
-    GET /api/service-categories/ - List all categories with their services
-    GET /api/service-categories/{id}/ - Get category details with services
-    POST /api/service-categories/ - Create category (admin only)
-    PUT/PATCH /api/service-categories/{id}/ - Update category (admin only)
-    DELETE /api/service-categories/{id}/ - Delete category (admin only)
-    """
     queryset = ServiceCategory.objects.all()
     serializer_class = ServiceCategorySerializer
     filter_backends = [filters.OrderingFilter]
@@ -102,12 +94,6 @@ class ServiceCategoryViewSet(viewsets.ModelViewSet):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing users (admin only).
-    GET /api/users/ - List all users
-    GET /api/users/{id}/ - Get user details
-    PATCH /api/users/{id}/ - Update user (deactivate, change role, etc.)
-    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -117,15 +103,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for nail services.
-    GET /api/services/ - List all services
-    GET /api/services/{id}/ - Get service details
-    POST /api/services/ - Create service (admin only)
-    PUT/PATCH /api/services/{id}/ - Update service (admin only)
-    DELETE /api/services/{id}/ - Delete service (admin only)
-    GET /api/services/featured/ - Get featured services
-    """
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -140,22 +117,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        """Get featured services"""
         featured_services = self.queryset.filter(is_featured=True, is_active=True)
         serializer = self.get_serializer(featured_services, many=True)
         return Response(serializer.data)
 
 
 class GalleryImageViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for gallery images.
-    GET /api/gallery/ - List all gallery images
-    GET /api/gallery/{id}/ - Get image details
-    POST /api/gallery/ - Upload gallery image (admin only)
-    PUT/PATCH /api/gallery/{id}/ - Update gallery image (admin only)
-    DELETE /api/gallery/{id}/ - Delete gallery image (admin only)
-    GET /api/gallery/featured/ - Get featured images
-    """
     queryset = GalleryImage.objects.all()
     serializer_class = GalleryImageSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -169,21 +136,12 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def featured(self, request):
-        """Get featured gallery images"""
         featured_images = self.queryset.filter(is_featured=True)
         serializer = self.get_serializer(featured_images, many=True)
         return Response(serializer.data)
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for appointments.
-    POST /api/appointments/ - Create new appointment
-    GET /api/appointments/ - List user's own appointments (or all for admins)
-    GET /api/appointments/{id}/ - Get appointment details
-    PUT/PATCH /api/appointments/{id}/ - Update appointment (admin or owner)
-    DELETE /api/appointments/{id}/ - Delete appointment (admin or owner)
-    """
     queryset = Appointment.objects.all()
     serializer_class = AppointmentSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -192,37 +150,26 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     ordering = ['-appointment_date', '-appointment_time']
 
     def get_permissions(self):
-        # Admin users have full access, regular users need authentication
         if self.request.user and self.request.user.is_staff:
             return [permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
-        # Users can view their own appointments, admins can view all
         queryset = super().get_queryset()
         if self.request.user.is_staff:
             return queryset
-        # Regular users can only see their own appointments
         return queryset.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
     def perform_update(self, serializer):
-        # Only allow update if user is owner or admin
         if not self.request.user.is_staff and serializer.instance.user != self.request.user:
             raise PermissionDenied("You don't have permission to update this appointment")
         serializer.save()
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for reviews.
-    POST /api/reviews/ - Create a review (authenticated users)
-    GET /api/reviews/ - List approved reviews
-    PUT/PATCH /api/reviews/{id}/ - Update review (owner or admin)
-    DELETE /api/reviews/{id}/ - Delete review (owner or admin)
-    """
     queryset = Review.objects.filter(is_approved=True)
     serializer_class = ReviewSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -239,12 +186,6 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
 
 class ContactMessageViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for contact messages.
-    POST /api/contact/ - Submit contact message (anyone)
-    GET /api/contact/ - List contact messages (admin only)
-    PATCH /api/contact/{id}/ - Mark as read (admin only)
-    """
     queryset = ContactMessage.objects.all()
     serializer_class = ContactMessageSerializer
     filter_backends = [filters.OrderingFilter]
@@ -257,20 +198,14 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
 
 
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    API endpoint for transactions (read-only).
-    GET /api/transactions/ - List user's transactions (or all for admins)
-    GET /api/transactions/{id}/ - Get transaction details
-    """
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status', 'transaction_date']
-    ordering = ['-transaction_date']
+    filterset_fields = ['status', 'initiated_at']
+    ordering = ['-initiated_at']
 
     def get_queryset(self):
-        # Users see their own transactions, admins see all
         queryset = super().get_queryset()
         if self.request.user.is_staff:
             return queryset
@@ -278,11 +213,6 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for notifications.
-    GET /api/notifications/ - List user's notifications
-    PATCH /api/notifications/{id}/ - Mark as read
-    """
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -290,12 +220,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        # Users only see their own notifications
         return self.queryset.filter(user=self.request.user)
 
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
-        """Mark all notifications as read"""
         self.get_queryset().update(is_read=True)
         return Response({'message': 'All notifications marked as read'})
 
@@ -312,63 +240,73 @@ def initiate_payment(request):
         "phone_number": "254712345678"
     }
     """
-    appointment_id = request.data.get('appointment_id')
-    phone_number = request.data.get('phone_number')
-    
-    logger.info(f"Payment initiation request - Appointment: {appointment_id}, Phone: {phone_number}")
-    
-    if not appointment_id or not phone_number:
-        return Response(
-            {'error': 'appointment_id and phone_number are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
     try:
-        appointment = Appointment.objects.get(id=appointment_id)
-    except Appointment.DoesNotExist:
-        return Response(
-            {'error': 'Appointment not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # Check if already paid
-    if appointment.payment_status == 'completed':
-        return Response(
-            {'error': 'This appointment has already been paid for'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Initialize M-Pesa client
-    mpesa_client = MpesaClient()
-    
-    # Initiate STK Push
-    result = mpesa_client.stk_push(
-        phone_number=phone_number,
-        amount=int(appointment.service.price),
-        account_reference=f'APT{appointment.id}',
-        transaction_desc=f'Payment for {appointment.service.name}'
-    )
-    
-    if result.get('success'):
-        # Update appointment with checkout request ID
-        appointment.checkout_request_id = result.get('CheckoutRequestID')
-        appointment.payment_status = 'pending'
-        appointment.phone = phone_number
-        appointment.save()
+        appointment_id = request.data.get('appointment_id')
+        phone_number = request.data.get('phone_number')
         
-        logger.info(f"STK Push initiated successfully for appointment {appointment.id}")
+        logger.info(f"Payment initiation request - Appointment: {appointment_id}, Phone: {phone_number}")
         
-        return Response({
-            'success': True,
-            'message': 'Payment prompt sent to your phone. Please enter your M-Pesa PIN.',
-            'CheckoutRequestID': result.get('CheckoutRequestID'),
-            'MerchantRequestID': result.get('MerchantRequestID')
-        })
-    else:
-        logger.error(f"STK Push failed for appointment {appointment.id}: {result.get('error')}")
+        if not appointment_id or not phone_number:
+            return Response(
+                {'error': 'appointment_id and phone_number are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            appointment = Appointment.objects.get(id=appointment_id)
+        except Appointment.DoesNotExist:
+            logger.error(f"Appointment {appointment_id} not found")
+            return Response(
+                {'error': 'Appointment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if already paid
+        if appointment.payment_status == 'completed':
+            return Response(
+                {'error': 'This appointment has already been paid for'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Initialize M-Pesa client
+        mpesa_client = MpesaClient()
+        
+        # Initiate STK Push
+        result = mpesa_client.stk_push(
+            phone_number=phone_number,
+            amount=int(appointment.service.price),
+            account_reference=f'APT{appointment.id}',
+            transaction_desc=f'Payment for {appointment.service.name}'
+        )
+        
+        if result.get('success'):
+            # Update appointment with checkout request ID
+            appointment.mpesa_checkout_request_id = result.get('CheckoutRequestID')
+            appointment.payment_status = 'initiated'
+            appointment.payment_phone = phone_number
+            appointment.save()
+            
+            logger.info(f"STK Push initiated successfully for appointment {appointment.id}")
+            
+            return Response({
+                'success': True,
+                'message': 'Payment prompt sent to your phone. Please enter your M-Pesa PIN.',
+                'CheckoutRequestID': result.get('CheckoutRequestID'),
+                'MerchantRequestID': result.get('MerchantRequestID')
+            })
+        else:
+            logger.error(f"STK Push failed for appointment {appointment.id}: {result.get('error')}")
+            return Response(
+                {'error': result.get('error', 'Payment initiation failed')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in initiate_payment: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response(
-            {'error': result.get('error', 'Payment initiation failed')},
-            status=status.HTTP_400_BAD_REQUEST
+            {'error': f'Server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -397,7 +335,7 @@ def mpesa_callback(request):
         
         # Find appointment by CheckoutRequestID
         try:
-            appointment = Appointment.objects.get(checkout_request_id=checkout_request_id)
+            appointment = Appointment.objects.get(mpesa_checkout_request_id=checkout_request_id)
             logger.info(f"Found appointment {appointment.id} for checkout request {checkout_request_id}")
         except Appointment.DoesNotExist:
             logger.error(f"No appointment found for CheckoutRequestID: {checkout_request_id}")
@@ -422,17 +360,16 @@ def mpesa_callback(request):
             mpesa_receipt = metadata.get('MpesaReceiptNumber', '')
             amount_paid = metadata.get('Amount', 0)
             transaction_date_str = metadata.get('TransactionDate', '')
-            phone_number = metadata.get('PhoneNumber', appointment.phone)
+            phone_number = metadata.get('PhoneNumber', appointment.payment_phone)
             
             logger.info(f"Payment details - Receipt: {mpesa_receipt}, Amount: {amount_paid}, Phone: {phone_number}")
             
-            # Parse transaction date (format: 20240115143022)
+            # Parse transaction date
             transaction_date = timezone.now()
             if transaction_date_str:
                 try:
                     from datetime import datetime
                     transaction_date = datetime.strptime(str(transaction_date_str), '%Y%m%d%H%M%S')
-                    # Make it timezone aware
                     from django.utils.timezone import make_aware
                     transaction_date = make_aware(transaction_date)
                 except Exception as e:
@@ -444,31 +381,37 @@ def mpesa_callback(request):
             appointment.mpesa_transaction_id = mpesa_receipt
             appointment.amount_paid = amount_paid
             appointment.payment_date = transaction_date
-            appointment.phone = phone_number
+            appointment.payment_phone = phone_number
             appointment.save()
             
-            # Create Transaction record (CRITICAL FIX)
+            # Create Transaction record
             try:
-                # Check if transaction already exists to avoid duplicates
+                # Check if transaction already exists
                 existing_transaction = Transaction.objects.filter(
-                    mpesa_receipt_number=mpesa_receipt
+                    mpesa_transaction_id=mpesa_receipt
                 ).first()
                 
                 if not existing_transaction:
                     transaction = Transaction.objects.create(
                         user=appointment.user,
                         appointment=appointment,
-                        amount=amount_paid,
-                        mpesa_receipt_number=mpesa_receipt,
+                        mpesa_transaction_id=mpesa_receipt,
+                        mpesa_checkout_request_id=checkout_request_id,
                         phone_number=phone_number,
+                        amount=amount_paid,
                         status='completed',
-                        transaction_date=transaction_date
+                        result_code=result_code,
+                        result_description=result_desc,
+                        completed_at=transaction_date,
+                        account_reference=f'APT{appointment.id}',
+                        transaction_description=f'Payment for {appointment.service.name}'
                     )
                     logger.info(f"Transaction record created: ID {transaction.id}, Receipt: {mpesa_receipt}")
                 else:
                     logger.info(f"Transaction already exists for receipt {mpesa_receipt}")
             except Exception as e:
                 logger.error(f"Error creating transaction record: {str(e)}")
+                logger.error(traceback.format_exc())
             
             # Create notification for user
             try:
@@ -476,7 +419,7 @@ def mpesa_callback(request):
                     user=appointment.user,
                     title='Payment Successful',
                     message=f'Your payment of KES {amount_paid} for {appointment.service.name} on {appointment.appointment_date} has been confirmed.',
-                    notification_type='payment'
+                    notification_type='appointment'
                 )
                 logger.info(f"Notification created for user {appointment.user.id}")
             except Exception as e:
@@ -511,6 +454,7 @@ def mpesa_callback(request):
     
     except Exception as e:
         logger.error(f"Error processing M-Pesa callback: {str(e)}")
+        logger.error(traceback.format_exc())
         # Still return success to M-Pesa to avoid retries
         return Response({
             'ResultCode': 0,
@@ -526,101 +470,144 @@ def check_payment_status(request, appointment_id):
     This is used when the callback doesn't arrive or for manual checking
     """
     try:
-        appointment = Appointment.objects.get(id=appointment_id)
+        logger.info(f"Checking payment status for appointment {appointment_id}")
+        
+        try:
+            appointment = Appointment.objects.get(id=appointment_id)
+        except Appointment.DoesNotExist:
+            logger.error(f"Appointment {appointment_id} not found")
+            return Response(
+                {'error': 'Appointment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
         # If already completed, return current status
         if appointment.payment_status == 'completed':
+            logger.info(f"Appointment {appointment_id} already completed")
             return Response({
                 'appointment_id': appointment.id,
                 'payment_status': appointment.payment_status,
                 'mpesa_transaction_id': appointment.mpesa_transaction_id,
-                'amount_paid': appointment.amount_paid,
+                'amount_paid': float(appointment.amount_paid) if appointment.amount_paid else None,
                 'payment_date': appointment.payment_date,
                 'appointment_status': appointment.status
             })
         
         # Query M-Pesa if we have a checkout request ID
-        if appointment.checkout_request_id:
-            mpesa_client = MpesaClient()
-            result = mpesa_client.query_transaction(appointment.checkout_request_id)
+        if appointment.mpesa_checkout_request_id:
+            logger.info(f"Querying M-Pesa for CheckoutRequestID: {appointment.mpesa_checkout_request_id}")
             
-            if result.get('success'):
-                data = result.get('data', {})
-                result_code = str(data.get('ResultCode', ''))
-                result_desc = data.get('ResultDesc', '')
+            try:
+                mpesa_client = MpesaClient()
+                result = mpesa_client.query_transaction(appointment.mpesa_checkout_request_id)
                 
-                logger.info(f"Query result for appointment {appointment.id}: Code {result_code} - {result_desc}")
-                
-                if result_code == '0':
-                    # Payment successful - extract details and create transaction
-                    callback_metadata = data.get('CallbackMetadata', {})
-                    items = callback_metadata.get('Item', [])
+                if result.get('success'):
+                    data = result.get('data', {})
+                    result_code = str(data.get('ResultCode', ''))
+                    result_desc = data.get('ResultDesc', '')
                     
-                    metadata = {}
-                    for item in items:
-                        name = item.get('Name')
-                        value = item.get('Value')
-                        metadata[name] = value
+                    logger.info(f"Query result for appointment {appointment.id}: Code {result_code} - {result_desc}")
                     
-                    mpesa_receipt = metadata.get('MpesaReceiptNumber', '')
-                    amount_paid = metadata.get('Amount', appointment.service.price)
-                    phone_number = metadata.get('PhoneNumber', appointment.phone)
-                    
-                    # Update appointment
-                    appointment.payment_status = 'completed'
-                    appointment.status = 'confirmed'
-                    appointment.mpesa_transaction_id = mpesa_receipt
-                    appointment.amount_paid = amount_paid
-                    appointment.payment_date = timezone.now()
-                    appointment.save()
-                    
-                    # Create Transaction record if it doesn't exist (CRITICAL FIX)
-                    if mpesa_receipt:
-                        existing_transaction = Transaction.objects.filter(
-                            mpesa_receipt_number=mpesa_receipt
-                        ).first()
+                    if result_code == '0':
+                        # Payment successful
+                        logger.info(f"Payment successful for appointment {appointment.id}")
                         
-                        if not existing_transaction:
-                            Transaction.objects.create(
-                                user=appointment.user,
-                                appointment=appointment,
-                                amount=amount_paid,
-                                mpesa_receipt_number=mpesa_receipt,
-                                phone_number=phone_number,
-                                status='completed',
-                                transaction_date=timezone.now()
-                            )
-                            logger.info(f"Transaction record created via query for appointment {appointment.id}")
-                    
-                    logger.info(f"Payment verified and completed for appointment {appointment.id}")
-                    
-                elif result_code in ['1032', '1037', '1', '2032']:
-                    # Payment cancelled, timed out, or failed
-                    appointment.payment_status = 'cancelled'
-                    appointment.save()
-                    logger.info(f"Payment cancelled/failed for appointment {appointment.id}: {result_desc}")
-                    
-                elif result_code != '':
-                    # Any other error code means payment failed
-                    appointment.payment_status = 'failed'
-                    appointment.save()
-                    logger.warning(f"Payment failed for appointment {appointment.id} with code {result_code}: {result_desc}")
+                        callback_metadata = data.get('CallbackMetadata', {})
+                        items = callback_metadata.get('Item', [])
+                        
+                        metadata = {}
+                        for item in items:
+                            name = item.get('Name')
+                            value = item.get('Value')
+                            metadata[name] = value
+                        
+                        mpesa_receipt = metadata.get('MpesaReceiptNumber', '')
+                        amount_paid = metadata.get('Amount', appointment.service.price)
+                        phone_number = metadata.get('PhoneNumber', appointment.payment_phone)
+                        
+                        logger.info(f"Payment details - Receipt: {mpesa_receipt}, Amount: {amount_paid}")
+                        
+                        # Update appointment
+                        appointment.payment_status = 'completed'
+                        appointment.status = 'confirmed'
+                        appointment.mpesa_transaction_id = mpesa_receipt
+                        appointment.amount_paid = amount_paid
+                        appointment.payment_date = timezone.now()
+                        appointment.payment_phone = phone_number
+                        appointment.save()
+                        
+                        # Create Transaction record if it doesn't exist
+                        if mpesa_receipt:
+                            try:
+                                existing_transaction = Transaction.objects.filter(
+                                    mpesa_transaction_id=mpesa_receipt
+                                ).first()
+                                
+                                if not existing_transaction:
+                                    transaction = Transaction.objects.create(
+                                        user=appointment.user,
+                                        appointment=appointment,
+                                        mpesa_transaction_id=mpesa_receipt,
+                                        mpesa_checkout_request_id=appointment.mpesa_checkout_request_id,
+                                        phone_number=phone_number,
+                                        amount=amount_paid,
+                                        status='completed',
+                                        result_code=result_code,
+                                        result_description=result_desc,
+                                        completed_at=timezone.now(),
+                                        account_reference=f'APT{appointment.id}',
+                                        transaction_description=f'Payment for {appointment.service.name}'
+                                    )
+                                    logger.info(f"Transaction record created via query: ID {transaction.id}, Receipt: {mpesa_receipt}")
+                                else:
+                                    logger.info(f"Transaction already exists for receipt {mpesa_receipt}")
+                            except Exception as e:
+                                logger.error(f"Error creating transaction: {str(e)}")
+                                logger.error(traceback.format_exc())
+                        
+                        logger.info(f"Payment verified and completed for appointment {appointment.id}")
+                        
+                    elif result_code in ['1032', '1037', '1', '2032']:
+                        # Payment cancelled, timed out, or failed
+                        appointment.payment_status = 'cancelled'
+                        appointment.save()
+                        logger.info(f"Payment cancelled/failed for appointment {appointment.id}: {result_desc}")
+                        
+                    elif result_code != '':
+                        # Any other error code means payment failed
+                        appointment.payment_status = 'failed'
+                        appointment.save()
+                        logger.warning(f"Payment failed for appointment {appointment.id} with code {result_code}: {result_desc}")
 
-            else:
-                logger.error(f"Failed to query M-Pesa: {result.get('error')}")
+                else:
+                    logger.error(f"Failed to query M-Pesa: {result.get('error')}")
+                    
+            except Exception as e:
+                logger.error(f"Error querying M-Pesa: {str(e)}")
+                logger.error(traceback.format_exc())
+        else:
+            logger.info(f"No checkout_request_id for appointment {appointment_id}")
         
+        # Return current status
         return Response({
             'appointment_id': appointment.id,
             'payment_status': appointment.payment_status,
-            'mpesa_transaction_id': appointment.mpesa_transaction_id,
-            'amount_paid': appointment.amount_paid,
+            'mpesa_transaction_id': appointment.mpesa_transaction_id if appointment.mpesa_transaction_id else None,
+            'amount_paid': float(appointment.amount_paid) if appointment.amount_paid else None,
             'payment_date': appointment.payment_date,
             'appointment_status': appointment.status
         })
-    except Appointment.DoesNotExist:
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in check_payment_status for appointment {appointment_id}: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response(
-            {'error': 'Appointment not found'},
-            status=status.HTTP_404_NOT_FOUND
+            {
+                'error': f'Error checking payment status: {str(e)}',
+                'appointment_id': appointment_id,
+                'payment_status': 'error'
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -629,86 +616,90 @@ def check_payment_status(request, appointment_id):
 def verify_manual_payment(request):
     """
     Submit payment for manual verification using M-Pesa receipt number.
-    Payment will be marked as 'pending_verification' and requires admin approval.
-    
-    Expected payload:
-    {
-        "appointment_id": 123,
-        "mpesa_receipt": "SH12XY34ZA"
-    }
     """
-    appointment_id = request.data.get('appointment_id')
-    mpesa_receipt = request.data.get('mpesa_receipt', '').strip().upper()
-    
-    if not appointment_id or not mpesa_receipt:
-        return Response(
-            {'error': 'appointment_id and mpesa_receipt are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
     try:
-        appointment = Appointment.objects.get(id=appointment_id)
-    except Appointment.DoesNotExist:
+        appointment_id = request.data.get('appointment_id')
+        mpesa_receipt = request.data.get('mpesa_receipt', '').strip().upper()
+        
+        logger.info(f"Manual verification request - Appointment: {appointment_id}, Receipt: {mpesa_receipt}")
+        
+        if not appointment_id or not mpesa_receipt:
+            return Response(
+                {'error': 'appointment_id and mpesa_receipt are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            appointment = Appointment.objects.get(id=appointment_id)
+        except Appointment.DoesNotExist:
+            logger.error(f"Appointment {appointment_id} not found")
+            return Response(
+                {'error': 'Appointment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if already paid
+        if appointment.payment_status == 'completed':
+            return Response(
+                {'error': 'This appointment has already been paid for'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate receipt format
+        if len(mpesa_receipt) < 8 or len(mpesa_receipt) > 12:
+            return Response(
+                {'error': 'Invalid M-Pesa receipt format. Please check and try again.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check for duplicates in appointments
+        duplicate_check = Appointment.objects.filter(
+            mpesa_transaction_id=mpesa_receipt
+        ).exclude(id=appointment_id).first()
+        
+        if duplicate_check:
+            logger.warning(f"Duplicate receipt in appointments: {mpesa_receipt}")
+            return Response(
+                {'error': 'This receipt code has already been used. Please contact support if this is an error.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check for duplicates in transactions
+        duplicate_transaction = Transaction.objects.filter(
+            mpesa_transaction_id=mpesa_receipt
+        ).first()
+        
+        if duplicate_transaction:
+            logger.warning(f"Duplicate receipt in transactions: {mpesa_receipt}")
+            return Response(
+                {'error': 'This receipt code has already been used. Please contact support if this is an error.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Mark as pending verification
+        appointment.payment_status = 'pending_verification'
+        appointment.mpesa_transaction_id = mpesa_receipt
+        appointment.amount_paid = appointment.service.price
+        appointment.payment_date = timezone.now()
+        appointment.save()
+        
+        logger.info(f"Manual payment submitted for verification - appointment {appointment.id}, receipt {mpesa_receipt}")
+        
+        return Response({
+            'success': True,
+            'message': 'Payment submitted for verification. An admin will verify your M-Pesa receipt and confirm your appointment within 24 hours.',
+            'appointment_id': appointment.id,
+            'payment_status': appointment.payment_status,
+            'appointment_status': appointment.status
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error in verify_manual_payment: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response(
-            {'error': 'Appointment not found'},
-            status=status.HTTP_404_NOT_FOUND
+            {'error': f'Server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-    # Check if already paid
-    if appointment.payment_status == 'completed':
-        return Response(
-            {'error': 'This appointment has already been paid for'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Validate receipt format (M-Pesa receipts are typically 10 characters)
-    if len(mpesa_receipt) < 8 or len(mpesa_receipt) > 12:
-        return Response(
-            {'error': 'Invalid M-Pesa receipt format. Please check and try again.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # SECURITY: Check if receipt code has been used before
-    duplicate_check = Appointment.objects.filter(
-        mpesa_transaction_id=mpesa_receipt
-    ).exclude(id=appointment_id).first()
-    
-    if duplicate_check:
-        logger.warning(f"Duplicate receipt attempt: {mpesa_receipt} already used for appointment {duplicate_check.id}")
-        return Response(
-            {'error': 'This receipt code has already been used. Please contact support if this is an error.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Check in Transaction table as well
-    duplicate_transaction = Transaction.objects.filter(
-        mpesa_receipt_number=mpesa_receipt
-    ).first()
-    
-    if duplicate_transaction:
-        logger.warning(f"Duplicate receipt attempt: {mpesa_receipt} already in transactions")
-        return Response(
-            {'error': 'This receipt code has already been used. Please contact support if this is an error.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Mark as pending verification instead of completed
-    appointment.payment_status = 'pending_verification'
-    appointment.mpesa_transaction_id = mpesa_receipt
-    appointment.amount_paid = appointment.service.price
-    appointment.payment_date = timezone.now()
-    # Don't confirm the appointment yet - wait for admin approval
-    appointment.save()
-    
-    logger.info(f"Manual payment submitted for verification - appointment {appointment.id}, receipt {mpesa_receipt}")
-    
-    return Response({
-        'success': True,
-        'message': 'Payment submitted for verification. An admin will verify your M-Pesa receipt and confirm your appointment within 24 hours. You will receive a confirmation email once approved.',
-        'appointment_id': appointment.id,
-        'payment_status': appointment.payment_status,
-        'appointment_status': appointment.status
-    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -716,72 +707,85 @@ def verify_manual_payment(request):
 def approve_manual_payment(request, appointment_id):
     """
     Admin endpoint to approve or reject manual payment verification.
-    Requires admin authentication.
-    
-    Expected payload:
-    {
-        "action": "approve" or "reject",
-        "reason": "optional reason for rejection"
-    }
     """
-    action = request.data.get('action')
-    reason = request.data.get('reason', '')
-    
-    if action not in ['approve', 'reject']:
-        return Response(
-            {'error': 'action must be either "approve" or "reject"'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
     try:
-        appointment = Appointment.objects.get(id=appointment_id)
-    except Appointment.DoesNotExist:
+        action = request.data.get('action')
+        reason = request.data.get('reason', '')
+        
+        logger.info(f"Admin approval request - Appointment: {appointment_id}, Action: {action}")
+        
+        if action not in ['approve', 'reject']:
+            return Response(
+                {'error': 'action must be either "approve" or "reject"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            appointment = Appointment.objects.get(id=appointment_id)
+        except Appointment.DoesNotExist:
+            logger.error(f"Appointment {appointment_id} not found")
+            return Response(
+                {'error': 'Appointment not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        if appointment.payment_status != 'pending_verification':
+            return Response(
+                {'error': f'Appointment is not pending verification. Current status: {appointment.payment_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if action == 'approve':
+            # Approve the payment
+            appointment.payment_status = 'completed'
+            appointment.status = 'confirmed'
+            appointment.save()
+            
+            # Create Transaction record
+            try:
+                Transaction.objects.create(
+                    user=appointment.user,
+                    appointment=appointment,
+                    mpesa_transaction_id=appointment.mpesa_transaction_id,
+                    phone_number=appointment.payment_phone,
+                    amount=appointment.amount_paid,
+                    status='completed',
+                    result_code='0',
+                    result_description='Manually verified by admin',
+                    completed_at=appointment.payment_date,
+                    account_reference=f'APT{appointment.id}',
+                    transaction_description=f'Manual verification - {appointment.service.name}'
+                )
+                logger.info(f"Transaction created for manually approved payment - appointment {appointment.id}")
+            except Exception as e:
+                logger.error(f"Error creating transaction during approval: {str(e)}")
+            
+            logger.info(f"Admin approved manual payment for appointment {appointment.id}")
+            
+            return Response({
+                'success': True,
+                'message': f'Payment approved for appointment {appointment.id}',
+                'appointment_status': appointment.status,
+                'payment_status': appointment.payment_status
+            })
+        
+        else:  # reject
+            appointment.payment_status = 'failed'
+            appointment.mpesa_transaction_id = None
+            appointment.save()
+            
+            logger.info(f"Admin rejected manual payment for appointment {appointment.id}. Reason: {reason}")
+            
+            return Response({
+                'success': True,
+                'message': f'Payment rejected for appointment {appointment.id}',
+                'reason': reason
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in approve_manual_payment: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response(
-            {'error': 'Appointment not found'},
-            status=status.HTTP_404_NOT_FOUND
+            {'error': f'Server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-    if appointment.payment_status != 'pending_verification':
-        return Response(
-            {'error': f'Appointment is not pending verification. Current status: {appointment.payment_status}'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    if action == 'approve':
-        # Approve the payment
-        appointment.payment_status = 'completed'
-        appointment.status = 'confirmed'
-        appointment.save()
-        
-        # Create Transaction record
-        Transaction.objects.create(
-            user=appointment.user,
-            appointment=appointment,
-            amount=appointment.amount_paid,
-            mpesa_receipt_number=appointment.mpesa_transaction_id,
-            phone_number=appointment.phone,
-            status='completed',
-            transaction_date=appointment.payment_date
-        )
-        
-        logger.info(f"Admin approved manual payment for appointment {appointment.id}")
-        
-        return Response({
-            'success': True,
-            'message': f'Payment approved for appointment {appointment.id}',
-            'appointment_status': appointment.status,
-            'payment_status': appointment.payment_status
-        })
-    
-    else:  # reject
-        appointment.payment_status = 'failed'
-        appointment.mpesa_transaction_id = None
-        appointment.save()
-        
-        logger.info(f"Admin rejected manual payment for appointment {appointment.id}. Reason: {reason}")
-        
-        return Response({
-            'success': True,
-            'message': f'Payment rejected for appointment {appointment.id}',
-            'reason': reason
-        })
