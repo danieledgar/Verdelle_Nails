@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { appointmentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE = process.env.REACT_APP_API_URL;
+// Use environment variable or fallback
+const API_BASE = process.env.REACT_APP_API_URL || 'https://verdellenails.up.railway.app/api';
 
 const Booking = () => {
   const location = useLocation();
@@ -48,11 +48,22 @@ const Booking = () => {
 
   const fetchServiceCategories = async () => {
     try {
+      console.log('Fetching categories from:', `${API_BASE}/service-categories/`);
       const response = await fetch(`${API_BASE}/service-categories/`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Categories loaded:', data);
       setCategories(data.results || data);
     } catch (error) {
       console.error('Error fetching service categories:', error);
+      setMessage({
+        type: 'error',
+        text: 'Failed to load services. Please refresh the page.',
+      });
     }
   };
 
@@ -94,19 +105,99 @@ const Booking = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await appointmentsAPI.create(formData);
-      const appointmentData = response.data;
+      console.log('Submitting booking with data:', formData);
+      console.log('API endpoint:', `${API_BASE}/appointments/`);
       
+      // Get authentication token
+      const token = localStorage.getItem('token');
+      console.log('Token exists:', !!token);
+      
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
+      // Validate required fields
+      if (!formData.customer_name || !formData.customer_email || !formData.customer_phone || !formData.service || !formData.appointment_date || !formData.appointment_time) {
+        throw new Error('Please fill in all required fields.');
+      }
+
+      // Make the API call directly with fetch for better error handling
+      const response = await fetch(`${API_BASE}/appointments/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      // Try to parse the response
+      let appointmentData;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        appointmentData = await response.json();
+        console.log('Appointment data received:', appointmentData);
+      } else {
+        const textResponse = await response.text();
+        console.error('Non-JSON response:', textResponse);
+        throw new Error('Server returned invalid response format');
+      }
+
+      // Check if request was successful
+      if (!response.ok) {
+        // Handle error response
+        const errorMessage = appointmentData.error 
+          || appointmentData.message 
+          || appointmentData.detail 
+          || Object.values(appointmentData).flat().join(', ')
+          || 'Failed to book appointment';
+        
+        console.error('Booking failed:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Success! Now get the selected service details for the payment page
+      const selectedService = allServices.find(s => s.id === parseInt(formData.service));
+      
+      console.log('Selected service:', selectedService);
+      console.log('Navigating to payment page...');
+
+      // Prepare appointment object with all necessary fields for payment page
+      const appointmentForPayment = {
+        id: appointmentData.id,
+        service_name: selectedService?.name || appointmentData.service_name || 'Service',
+        service_price: selectedService?.price || appointmentData.service_price || 0,
+        appointment_date: appointmentData.appointment_date || formData.appointment_date,
+        appointment_time: appointmentData.appointment_time || formData.appointment_time,
+        customer_name: appointmentData.customer_name || formData.customer_name,
+        customer_email: appointmentData.customer_email || formData.customer_email,
+        customer_phone: appointmentData.customer_phone || formData.customer_phone,
+        status: appointmentData.status || 'pending',
+        payment_status: appointmentData.payment_status || 'pending',
+      };
+
+      console.log('Appointment object for payment:', appointmentForPayment);
+
       // Redirect to payment page with appointment details
       navigate('/payment', { 
         state: { 
-          appointment: appointmentData
-        } 
+          appointment: appointmentForPayment
+        },
+        replace: false // Don't replace history so user can go back
       });
+
     } catch (error) {
+      console.error('Booking error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'Failed to book appointment. Please try again.',
+        text: error.message || 'Failed to book appointment. Please try again.',
       });
       setLoading(false);
     }
@@ -269,21 +360,6 @@ const BookingContainer = styled.div`
   padding-bottom: ${props => props.theme.spacing.xxl};
 `;
 
-const PageHeader = styled.div`
-  background: linear-gradient(135deg, rgba(201, 166, 132, 0.1) 0%, rgba(212, 175, 142, 0.1) 100%);
-  padding: ${props => props.theme.spacing.xxl} ${props => props.theme.spacing.lg};
-  text-align: center;
-`;
-
-const PageTitle = styled.h1`
-  margin-bottom: ${props => props.theme.spacing.md};
-`;
-
-const PageSubtitle = styled.p`
-  font-size: ${props => props.theme.fontSizes.large};
-  color: ${props => props.theme.colors.textLight};
-`;
-
 const Container = styled.div`
   max-width: 800px;
   margin: 0 auto;
@@ -330,6 +406,8 @@ const Message = styled.div`
   border: 1px solid ${props => props.type === 'success' 
     ? props.theme.colors.success 
     : props.theme.colors.error};
+  font-size: ${props => props.theme.fontSizes.small};
+  line-height: 1.5;
 `;
 
 const FormRow = styled.div`
@@ -358,7 +436,13 @@ const Input = styled.input`
   transition: border-color ${props => props.theme.transitions.fast};
 
   &:focus {
+    outline: none;
     border-color: ${props => props.theme.colors.primary};
+  }
+
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
   }
 `;
 
@@ -372,7 +456,13 @@ const Select = styled.select`
   cursor: pointer;
 
   &:focus {
+    outline: none;
     border-color: ${props => props.theme.colors.primary};
+  }
+
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
   }
 `;
 
@@ -383,9 +473,16 @@ const TextArea = styled.textarea`
   font-size: ${props => props.theme.fontSizes.medium};
   resize: vertical;
   transition: border-color ${props => props.theme.transitions.fast};
+  font-family: inherit;
 
   &:focus {
+    outline: none;
     border-color: ${props => props.theme.colors.primary};
+  }
+
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
   }
 `;
 
@@ -396,8 +493,10 @@ const SubmitButton = styled.button`
   color: ${props => props.theme.colors.white};
   font-size: ${props => props.theme.fontSizes.large};
   font-weight: 600;
+  border: none;
   border-radius: 30px;
   margin-top: ${props => props.theme.spacing.lg};
+  cursor: pointer;
   transition: all ${props => props.theme.transitions.medium};
 
   &:hover:not(:disabled) {
@@ -409,6 +508,11 @@ const SubmitButton = styled.button`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 `;
 
@@ -443,6 +547,10 @@ const BookingTypeButtons = styled.div`
   gap: ${props => props.theme.spacing.md};
   justify-content: center;
   margin-bottom: ${props => props.theme.spacing.sm};
+
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    flex-direction: column;
+  }
 `;
 
 const BookingTypeButton = styled.button`
@@ -468,6 +576,14 @@ const BookingTypeButton = styled.button`
     background: ${props => props.active 
       ? props.theme.colors.primary 
       : props.theme.colors.primary}11;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    max-width: 100%;
   }
 `;
 
