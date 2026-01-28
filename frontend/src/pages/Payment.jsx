@@ -29,7 +29,7 @@ const Payment = () => {
 
   useEffect(() => {
     let interval;
-    const MAX_CHECKS = 40;
+    const MAX_CHECKS = 40; // 40 checks * 3 seconds = 2 minutes
     
     if (paymentStatus === 'checking' && appointment && checkCount < MAX_CHECKS) {
       interval = setInterval(() => {
@@ -38,7 +38,7 @@ const Payment = () => {
       }, 3000);
     } else if (checkCount >= MAX_CHECKS && paymentStatus === 'checking') {
       setPaymentStatus('timeout');
-      setMessage('Payment verification timed out. Please check your M-Pesa messages or contact support.');
+      setMessage('Payment verification timed out. Please check your M-Pesa messages or use manual verification if you completed the payment.');
     }
     
     return () => {
@@ -113,21 +113,34 @@ const Payment = () => {
 
   const checkPaymentStatus = async () => {
     try {
+      console.log(`Checking payment status (attempt ${checkCount + 1})...`);
       const response = await fetch(`${API_BASE}/mpesa/status/${appointment.id}/`);
       const data = await response.json();
 
+      console.log('Payment status response:', data);
+
       if (data.payment_status === 'completed') {
+        console.log('✅ Payment completed!');
         setPaymentStatus('success');
         setMessage('Payment successful! Your appointment has been confirmed.');
       } else if (data.payment_status === 'cancelled') {
+        console.log('❌ Payment cancelled');
         setPaymentStatus('cancelled');
         setMessage('Payment was cancelled. You can try again or use manual verification.');
       } else if (data.payment_status === 'failed') {
+        console.log('❌ Payment failed');
         setPaymentStatus('failed');
         setMessage('Payment failed. Please try again or use manual verification.');
       } else if (data.payment_status === 'pending_verification') {
+        console.log('⏳ Payment pending verification');
         setPaymentStatus('manual');
         setMessage('Payment submitted for manual verification. An admin will review your payment within 24 hours.');
+      } else if (data.payment_status === 'pending' || data.payment_status === 'initiated') {
+        // Still waiting for payment to complete
+        console.log(`⏳ Payment still processing (status: ${data.payment_status})`);
+        // Don't change the UI state - keep checking
+      } else {
+        console.log(`⚠️ Unexpected payment status: ${data.payment_status}`);
       }
     } catch (error) {
       console.error('Error checking payment status:', error);
@@ -169,8 +182,8 @@ const Payment = () => {
       }
 
       if (data.success) {
-        setPaymentStatus('success');
-        setMessage(data.message || 'Payment verified successfully!');
+        setPaymentStatus('manual');
+        setMessage(data.message || 'Payment submitted for verification. An admin will review it within 24 hours.');
       } else {
         setMessage(data.error || 'Verification failed. Please check your receipt number.');
       }
@@ -267,136 +280,157 @@ const Payment = () => {
           )}
 
           {paymentStatus === 'timeout' && (
-            <StatusMessage type="error">
-              <FaTimesCircle size={50} />
+            <StatusMessage type="warning">
+              <FaSpinner size={50} />
               <StatusTitle>Verification Timeout</StatusTitle>
               <StatusText>{message}</StatusText>
-              <StatusText>If payment was deducted, please verify manually using your M-Pesa receipt.</StatusText>
-              <RetryButton onClick={() => setPaymentStatus('manual')}>
-                Verify Payment Manually
+              <InfoText>
+                If you completed the M-Pesa payment, please use the manual verification option below to submit your receipt number.
+              </InfoText>
+              <RetryButton onClick={() => {
+                setPaymentStatus('idle');
+                setCheckCount(0);
+                setMessage('');
+              }}>
+                Try Again
               </RetryButton>
-              <BackButton onClick={() => navigate('/appointments')}>
-                View Appointments
+              <BackButton onClick={() => setPaymentStatus('manual')}>
+                Verify Manual Payment
               </BackButton>
+            </StatusMessage>
+          )}
+
+          {paymentStatus === 'checking' && (
+            <StatusMessage type="info">
+              <Spinner>
+                <FaSpinner size={50} />
+              </Spinner>
+              <StatusTitle>Processing Payment...</StatusTitle>
+              <StatusText>Waiting for M-Pesa confirmation (attempt {checkCount + 1} of 40)</StatusText>
+              <InfoText>
+                Please complete the payment on your phone. This may take up to 2 minutes.
+              </InfoText>
+              {checkCount > 10 && (
+                <ManualVerifyLink onClick={() => setPaymentStatus('manual')}>
+                  Payment completed? Verify manually
+                </ManualVerifyLink>
+              )}
             </StatusMessage>
           )}
 
           {paymentStatus === 'manual' && (
             <Section>
-              <SectionTitle>Manual Payment Verification</SectionTitle>
+              <SectionTitle>
+                <FaMoneyBillWave />
+                Manual Payment Verification
+              </SectionTitle>
               <InfoText>
-                If you've already paid via M-Pesa, enter your M-Pesa receipt number below.
-                You can find this in your M-Pesa message (e.g., SH12XY34ZA).
+                If you've completed the M-Pesa payment, please enter your M-Pesa receipt number below. 
+                You can find this in your M-Pesa confirmation SMS.
               </InfoText>
-              
               <FormGroup>
-                <Label>M-Pesa Receipt Number</Label>
+                <Label>
+                  <FaMoneyBillWave />
+                  M-Pesa Receipt Number
+                </Label>
                 <PhoneInput
                   type="text"
                   placeholder="e.g., SH12XY34ZA"
                   value={mpesaReceipt}
                   onChange={(e) => setMpesaReceipt(e.target.value.toUpperCase())}
                   disabled={verifyingReceipt}
-                  maxLength={12}
                 />
                 <HintText>
-                  Enter the M-Pesa confirmation code from your SMS
+                  Enter the receipt number exactly as shown in your M-Pesa message (usually 10 characters)
                 </HintText>
               </FormGroup>
-
+              
               {message && (
                 <InfoMessage>{message}</InfoMessage>
               )}
-
-              <PayButton
+              
+              <PayButton 
                 onClick={handleManualVerification}
                 disabled={verifyingReceipt || !mpesaReceipt}
               >
                 {verifyingReceipt ? (
                   <>
-                    <FaSpinner className="spinning" /> Verifying...
+                    <FaSpinner className="spinning" />
+                    Verifying...
                   </>
                 ) : (
-                  'Verify Payment'
+                  <>
+                    <FaCheckCircle />
+                    Submit for Verification
+                  </>
                 )}
               </PayButton>
-
-              <SecurityNote>
-                <small>
-                  Can't find your receipt? Check your M-Pesa messages or dial *334#
-                </small>
-              </SecurityNote>
               
               <BackButton onClick={() => {
                 setPaymentStatus('idle');
                 setCheckCount(0);
-                setMpesaReceipt('');
                 setMessage('');
+                setMpesaReceipt('');
               }}>
                 Back to Payment
               </BackButton>
             </Section>
           )}
 
-          {paymentStatus === 'checking' && (
-            <StatusMessage type="processing">
-              <Spinner>
-                <FaSpinner size={50} />
-              </Spinner>
-              <StatusTitle>Processing Payment</StatusTitle>
-              <StatusText>{message}</StatusText>
-              <StatusText>Waiting for confirmation... ({Math.floor(checkCount * 3 / 60)}:{(checkCount * 3 % 60).toString().padStart(2, '0')})</StatusText>
-              <ManualVerifyLink onClick={() => setPaymentStatus('manual')}>
-                Already paid? Verify manually
-              </ManualVerifyLink>
-            </StatusMessage>
-          )}
-
           {(paymentStatus === 'idle' || paymentStatus === 'processing') && (
             <Section>
               <SectionTitle>
-                <FaMoneyBillWave /> M-Pesa Payment
+                <FaPhone />
+                M-Pesa Payment
               </SectionTitle>
               <InfoText>
-                Enter your M-Pesa registered phone number to receive a payment prompt.
+                You will receive a payment prompt on your phone. Enter your M-Pesa PIN to complete the payment.
               </InfoText>
-              
               <FormGroup>
                 <Label>
-                  <FaPhone /> M-Pesa Phone Number
+                  <FaPhone />
+                  M-Pesa Phone Number
                 </Label>
                 <PhoneInput
                   type="tel"
-                  placeholder="0712 345 678"
+                  placeholder="e.g., 0712345678 or 254712345678"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  disabled={loading || paymentStatus === 'processing'}
+                  disabled={loading}
                 />
                 <HintText>
-                  Enter phone number (e.g., 0712345678)
+                  Enter the phone number registered with M-Pesa
                 </HintText>
               </FormGroup>
-
+              
               {message && (
                 <InfoMessage>{message}</InfoMessage>
               )}
-
-              <PayButton
+              
+              <PayButton 
                 onClick={handleInitiatePayment}
-                disabled={loading || !phoneNumber || paymentStatus === 'processing'}
+                disabled={loading || !phoneNumber}
               >
                 {loading ? (
                   <>
-                    <FaSpinner className="spinning" /> Processing...
+                    <FaSpinner className="spinning" />
+                    Initiating Payment...
                   </>
                 ) : (
-                  <>Pay KES {parseFloat(appointment.service_price).toLocaleString('en-KE', { minimumFractionDigits: 2 })}</>
+                  <>
+                    <FaMoneyBillWave />
+                    Pay KES {parseFloat(appointment.service_price).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </>
                 )}
               </PayButton>
-
+              
+              <ManualVerifyLink onClick={() => setPaymentStatus('manual')}>
+                Already paid? Verify manually
+              </ManualVerifyLink>
+              
               <SecurityNote>
                 <small>
-                  🔒 Secure payment via Safaricom M-Pesa
+                  🔒 Secure payment powered by M-Pesa. Your phone number is not stored.
                 </small>
               </SecurityNote>
             </Section>
