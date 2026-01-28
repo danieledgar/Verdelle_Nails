@@ -275,7 +275,7 @@ def initiate_payment(request):
         result = mpesa_client.stk_push(
             phone_number=phone_number,
             amount=int(appointment.service.price),
-            account_reference=f'APT{appointment.id}',
+            account_reference='Verdelle Nails',
             transaction_desc=f'Payment for {appointment.service.name}'
         )
         
@@ -403,7 +403,7 @@ def mpesa_callback(request):
                         result_code=result_code,
                         result_description=result_desc,
                         completed_at=transaction_date,
-                        account_reference=f'APT{appointment.id}',
+                        account_reference='Verdelle Nails',
                         transaction_description=f'Payment for {appointment.service.name}'
                     )
                     logger.info(f"Transaction record created: ID {transaction.id}, Receipt: {mpesa_receipt}")
@@ -647,7 +647,7 @@ def approve_manual_payment(request, appointment_id):
                     result_code='0',
                     result_description='Manually verified by admin',
                     completed_at=appointment.payment_date,
-                    account_reference=f'APT{appointment.id}',
+                    account_reference='Verdelle Nails',
                     transaction_description=f'Manual verification - {appointment.service.name}'
                 )
                 logger.info(f"Transaction created for manually approved payment - appointment {appointment.id}")
